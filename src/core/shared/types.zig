@@ -2391,6 +2391,92 @@ pub fn freeCommandOutputReplay(
     }
 }
 
+/// Deep-copies every slice-bearing field so the result is owned by `alloc`.
+/// The caller owns the returned memory.
+pub fn dupeToolResultMemory(
+    alloc: std.mem.Allocator,
+    memory: ToolResultMemory,
+) !ToolResultMemory {
+    const output_handle = if (memory.output_handle) |handle|
+        try alloc.dupe(u8, handle)
+    else
+        null;
+    errdefer if (output_handle) |handle| alloc.free(@constCast(handle));
+    const preview = if (memory.preview) |value|
+        try alloc.dupe(u8, value)
+    else
+        null;
+    errdefer if (preview) |value| alloc.free(@constCast(value));
+    const command_output_replay = if (memory.command_output_replay) |replay|
+        try dupeCommandOutputReplay(alloc, replay)
+    else
+        null;
+    errdefer if (command_output_replay) |replay| freeCommandOutputReplay(alloc, replay);
+    const committed_file_presentation = if (memory.committed_file_presentation) |presentation|
+        try dupeCommittedFilePresentation(alloc, presentation)
+    else
+        null;
+    return .{
+        .output_handle = output_handle,
+        .preview = preview,
+        .output_bytes = memory.output_bytes,
+        .stored_output_bytes = memory.stored_output_bytes,
+        .truncated = memory.truncated,
+        .model_view_covers_full_file = memory.model_view_covers_full_file,
+        .committed_file_presentation = committed_file_presentation,
+        .command_output_replay = command_output_replay,
+        .command_process_presentation = memory.command_process_presentation,
+        .terminal_action_presentation = memory.terminal_action_presentation,
+    };
+}
+
+test "tool result memory dupe covers every slice-bearing field" {
+    // Tripwire: adding a field to ToolResultMemory requires extending
+    // dupeToolResultMemory (and the dispatch-boundary copy-out that relies on
+    // it) before bumping this count.
+    comptime std.debug.assert(@typeInfo(ToolResultMemory).@"struct".fields.len == 10);
+
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const source = ToolResultMemory{
+        .output_handle = "handle.txt",
+        .preview = "preview text",
+        .output_bytes = 42,
+        .stored_output_bytes = 21,
+        .truncated = true,
+        .model_view_covers_full_file = false,
+        .committed_file_presentation = .{
+            .path = "src/file.zig",
+            .kind = .edited,
+            .lines = &.{},
+            .additions = 1,
+            .deletions = 2,
+            .truncated = false,
+        },
+        .command_output_replay = .{ .available = .{
+            .handle = "replay-handle",
+            .framed_bytes = 7,
+        } },
+        .command_process_presentation = .{ .signal = 9 },
+        .terminal_action_presentation = .{ .returned = .safety_ceiling },
+    };
+
+    const owned = try dupeToolResultMemory(arena, source);
+    try std.testing.expectEqualStrings("handle.txt", owned.output_handle.?);
+    try std.testing.expect(owned.output_handle.?.ptr != source.output_handle.?.ptr);
+    try std.testing.expectEqualStrings("preview text", owned.preview.?);
+    try std.testing.expect(owned.preview.?.ptr != source.preview.?.ptr);
+    try std.testing.expectEqualStrings("src/file.zig", owned.committed_file_presentation.?.path);
+    try std.testing.expect(owned.committed_file_presentation.?.path.ptr !=
+        source.committed_file_presentation.?.path.ptr);
+    try std.testing.expectEqualStrings("replay-handle", owned.command_output_replay.?.available.handle);
+    try std.testing.expect(owned.command_output_replay.?.available.handle.ptr !=
+        source.command_output_replay.?.available.handle.ptr);
+    try std.testing.expectEqual(@as(usize, 42), owned.output_bytes);
+    try std.testing.expectEqual(source.command_process_presentation, owned.command_process_presentation);
+}
+
 pub fn dupePermissionFeedback(
     alloc: std.mem.Allocator,
     feedback: []const []const u8,

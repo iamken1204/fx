@@ -3175,7 +3175,6 @@ noinline fn recoveryCheckpointAssistantSource(
 
 fn persistRecoveryCheckpoint(
     deps: *const AgentRuntimeDeps,
-    arena: Allocator,
     job: QueuedPrompt,
     current_turn_messages: []const ChatMessage,
     assistant_source: []const u8,
@@ -3191,8 +3190,16 @@ fn persistRecoveryCheckpoint(
     trace_ctx: TraceContext,
 ) !void {
     const effect = deps.recovery_checkpoint orelse return;
+    // The execution memory is a deep copy of every tool result accumulated so
+    // far this turn. Building it in the turn arena would retain one full copy
+    // per checkpoint for the rest of the turn (quadratic in steps), so it
+    // lives in a scratch arena instead: every effect.set sink either
+    // serializes the checkpoint or dupes it with its own allocator before
+    // returning.
+    var scratch_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer scratch_state.deinit();
     const execution = try runtime_execution_memory.buildExecutionMemory(
-        arena,
+        scratch_state.allocator(),
         current_turn_messages,
     );
     try effect.set(deps.ctx, .{
@@ -5055,7 +5062,6 @@ fn processQueuedPromptLoop(
                 recovery_strategy = .pause;
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -5092,7 +5098,6 @@ fn processQueuedPromptLoop(
                 recovery_strategy = .pause;
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -5506,7 +5511,6 @@ fn processQueuedPromptLoop(
             if (job.provider == .gateway) {
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     stream_ctx.interruption_source_or(""),
@@ -5603,7 +5607,6 @@ fn processQueuedPromptLoop(
                 if (recoveryPauseRequested(config)) {
                     try persistRecoveryCheckpoint(
                         deps,
-                        arena,
                         job,
                         within_turn_suffix.items,
                         try recoveryCheckpointAssistantSource(
@@ -5700,7 +5703,6 @@ fn processQueuedPromptLoop(
                 }
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -5742,7 +5744,6 @@ fn processQueuedPromptLoop(
                 if (recoveryPauseRequested(config)) {
                     try persistRecoveryCheckpoint(
                         deps,
-                        arena,
                         job,
                         within_turn_suffix.items,
                         try recoveryCheckpointAssistantSource(
@@ -6009,7 +6010,6 @@ fn processQueuedPromptLoop(
                 );
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -6070,7 +6070,6 @@ fn processQueuedPromptLoop(
             {
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -6166,7 +6165,6 @@ fn processQueuedPromptLoop(
                 if (decision.strategy == .pause) {
                     try persistRecoveryCheckpoint(
                         deps,
-                        arena,
                         job,
                         within_turn_suffix.items,
                         try recoveryCheckpointAssistantSource(
@@ -6206,7 +6204,6 @@ fn processQueuedPromptLoop(
                     if (route_changed) {
                         try persistRecoveryCheckpoint(
                             deps,
-                            arena,
                             job,
                             within_turn_suffix.items,
                             try recoveryCheckpointAssistantSource(
@@ -6500,7 +6497,6 @@ fn processQueuedPromptLoop(
                 if (decision.strategy == .pause) {
                     try persistRecoveryCheckpoint(
                         deps,
-                        arena,
                         job,
                         within_turn_suffix.items,
                         try recoveryCheckpointAssistantSource(
@@ -6539,7 +6535,6 @@ fn processQueuedPromptLoop(
                     if (route_changed) {
                         try persistRecoveryCheckpoint(
                             deps,
-                            arena,
                             job,
                             within_turn_suffix.items,
                             try recoveryCheckpointAssistantSource(
@@ -6970,7 +6965,7 @@ fn processQueuedPromptLoop(
         if (disposition == .completed) try stream_ctx.start_response();
         var step_has_visible_tool_calls = false;
         for (completion.tool_calls) |call| {
-            if (runtime_tool_presentation.activityKindForCall(arena, deps.tool_registry, call) == .ask) continue;
+            if (runtime_tool_presentation.activityKindForCall(deps.tool_registry, call) == .ask) continue;
             step_has_visible_tool_calls = true;
             break;
         }
@@ -7588,7 +7583,7 @@ fn processQueuedPromptLoop(
         const step_has_content = !terminal_provider_completion and completion.content != null and completion.content.?.len > 0;
         if (step_has_content) {
             const first_tool_is_ask = effective_tool_calls.len > 0 and
-                runtime_tool_presentation.activityKindForCall(arena, deps.tool_registry, effective_tool_calls[0]) == .ask;
+                runtime_tool_presentation.activityKindForCall(deps.tool_registry, effective_tool_calls[0]) == .ask;
             if (!first_tool_is_ask) try deps.push_text(deps.ctx, .{ .assistant_rendered = "\n" });
             silent_tool_steps = 0;
         } else {
@@ -8726,15 +8721,14 @@ fn processQueuedPromptLoop(
                 status_started = try runtime_tool_presentation.startToolVisibleLifecycle(deps, arena, turn_id, stream_ctx.provisional_statuses.presentation_group_id, tool_call, tool_display_target, advertised_dynamic_tool_names);
             }
 
-            var file_call_arena_state: std.heap.ArenaAllocator = undefined;
-            if (is_file_mutation) {
-                file_call_arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-            }
-            defer if (is_file_mutation) file_call_arena_state.deinit();
-            const call_allocator = if (is_file_mutation)
-                file_call_arena_state.allocator()
-            else
-                arena;
+            // Every call gets its own arena so decode/validate/call scratch
+            // is reclaimed when the call returns instead of accumulating in
+            // the turn arena for the rest of the turn. Everything that must
+            // outlive the call travels through result_allocator (the turn
+            // arena) inside executeToolCallAuthorized.
+            var call_arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+            defer call_arena_state.deinit();
+            const call_allocator = call_arena_state.allocator();
             const execution_call = if (is_file_mutation)
                 try types.dupeToolCall(call_allocator, tool_call)
             else
@@ -9254,7 +9248,7 @@ fn processQueuedPromptLoop(
                 };
             }
             const execution_lifecycle_id = types.ToolLifecycleId{ .turn_id = turn_id, .call_id = execution_call.id };
-            const execution_is_command = runtime_tool_presentation.activityKindForCall(arena, deps.tool_registry, tool_call) == .command;
+            const execution_is_command = runtime_tool_presentation.activityKindForCall(deps.tool_registry, tool_call) == .command;
             var execution_error: ?anyerror = null;
             var execution = deps.execute_tool_call(deps.ctx, .{
                 .call_allocator = call_allocator,
