@@ -846,13 +846,6 @@ fn executeRegisteredTool(
         toolExecutionResultFromDispatch(dispatched, dispatch_metadata);
     execution.model_output = dispatched.body;
     if (dispatch_metadata.status_detail) |detail| execution.status_detail = detail;
-    if (mcp_call_status == .input_required or
-        (execution.status == .failure and
-            tool_mcp_feature_dispatch.isInputRequiredFailure(execution.model_output)))
-    {
-        execution.finish_turn = true;
-        execution.status_detail = "McpInputRequired";
-    }
     execution.selected_dynamic_tool_name = selected_dynamic_tool_sink.name;
     execution.selected_dynamic_tool_schema_json = selected_dynamic_tool_sink.schema_json;
     execution.context_notices = context_notice_sink.notices.items;
@@ -877,6 +870,16 @@ fn executeRegisteredTool(
         if (execution.status_detail) |detail| {
             execution.status_detail = try result_allocator.dupe(u8, detail);
         }
+    }
+    // Assigned after the copy-out so it stays a static literal: ask retains
+    // finish-turn error codes past the turn arena (PromptRunResult.error_code
+    // is never freed), so this must not be duped onto a shorter-lived owner.
+    if (mcp_call_status == .input_required or
+        (execution.status == .failure and
+            tool_mcp_feature_dispatch.isInputRequiredFailure(execution.model_output)))
+    {
+        execution.finish_turn = true;
+        execution.status_detail = "McpInputRequired";
     }
     return execution;
 }
