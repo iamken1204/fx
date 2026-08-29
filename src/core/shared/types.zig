@@ -2430,6 +2430,90 @@ pub fn dupeToolResultMemory(
     };
 }
 
+/// Deep-copies every slice-bearing field of a provider completion so the
+/// result is owned by `alloc`. Arena callers rely on this to move a completion
+/// out of a shorter-lived attempt allocator.
+pub fn dupeModelCompletion(alloc: std.mem.Allocator, completion: ModelCompletion) !ModelCompletion {
+    var copy = completion;
+    copy.content = if (completion.content) |value| try alloc.dupe(u8, value) else null;
+    errdefer if (copy.content) |value| alloc.free(@constCast(value));
+    copy.tool_calls = try dupeToolCallSlice(alloc, completion.tool_calls);
+    errdefer freeToolCallSlice(alloc, @constCast(copy.tool_calls));
+    copy.generation_id = if (completion.generation_id) |value| try alloc.dupe(u8, value) else null;
+    errdefer if (copy.generation_id) |value| alloc.free(@constCast(value));
+    if (completion.billing) |billing| copy.billing.?.model = try alloc.dupe(u8, billing.model);
+    errdefer if (copy.billing) |billing| alloc.free(@constCast(billing.model));
+    copy.provider_failure_detail = if (completion.provider_failure_detail) |value| try alloc.dupe(u8, value) else null;
+    errdefer if (copy.provider_failure_detail) |value| alloc.free(@constCast(value));
+    copy.provider_state_json = if (completion.provider_state_json) |value| try alloc.dupe(u8, value) else null;
+    return copy;
+}
+
+test "model completion dupe covers every slice-bearing field" {
+    // Tripwire: adding a field to ModelCompletion requires extending
+    // dupeModelCompletion (and the attempt-boundary copy-out that relies on
+    // it) before bumping this count.
+    comptime std.debug.assert(@typeInfo(ModelCompletion).@"struct".fields.len == 12);
+    comptime std.debug.assert(@typeInfo(ProviderBilling).@"struct".fields.len == 9);
+
+    var source_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const source_alloc = source_state.allocator();
+    const source = ModelCompletion{
+        .content = try source_alloc.dupe(u8, "answer"),
+        .tool_calls = try dupeToolCallSlice(source_alloc, &.{.{
+            .id = "call_1",
+            .name = "read_file",
+            .arguments_json = "{}",
+            .provisional_id = "tmp_1",
+            .provider_result = "{\"ok\":true}",
+        }}),
+        .generation_id = try source_alloc.dupe(u8, "gen_1"),
+        .billing = .{
+            .created_at_ms = 7,
+            .model = try source_alloc.dupe(u8, "model-x"),
+            .total_cost = 0.5,
+            .input_tokens = 1,
+            .output_tokens = 2,
+            .cache_read_tokens = 3,
+            .cache_write_tokens = 4,
+            .reasoning_tokens = 5,
+            .billable_web_search_calls = 6,
+        },
+        .generation_metadata_invalid = true,
+        .delivery_ambiguous = true,
+        .provider_result_identity_failure = .absent,
+        .provider_failure_cause = .gateway_stream_timeout,
+        .provider_failure_detail = try source_alloc.dupe(u8, "detail"),
+        .provider_state_json = try source_alloc.dupe(u8, "[{\"id\":\"rs_1\"}]"),
+        .finish_reason = .tool_calls,
+        .usage = .{ .input_tokens = 9 },
+    };
+
+    var owned_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer owned_state.deinit();
+    const owned = try dupeModelCompletion(owned_state.allocator(), source);
+    source_state.deinit();
+
+    try std.testing.expectEqualStrings("answer", owned.content.?);
+    try std.testing.expectEqual(@as(usize, 1), owned.tool_calls.len);
+    try std.testing.expectEqualStrings("call_1", owned.tool_calls[0].id);
+    try std.testing.expectEqualStrings("read_file", owned.tool_calls[0].name);
+    try std.testing.expectEqualStrings("{}", owned.tool_calls[0].arguments_json);
+    try std.testing.expectEqualStrings("tmp_1", owned.tool_calls[0].provisional_id.?);
+    try std.testing.expectEqualStrings("{\"ok\":true}", owned.tool_calls[0].provider_result.?);
+    try std.testing.expectEqualStrings("gen_1", owned.generation_id.?);
+    try std.testing.expectEqualStrings("model-x", owned.billing.?.model);
+    try std.testing.expectEqual(@as(u64, 4), owned.billing.?.cache_write_tokens);
+    try std.testing.expect(owned.generation_metadata_invalid);
+    try std.testing.expect(owned.delivery_ambiguous);
+    try std.testing.expectEqual(ProviderResultIdentityFailure.absent, owned.provider_result_identity_failure.?);
+    try std.testing.expectEqual(ProviderFailureCause.gateway_stream_timeout, owned.provider_failure_cause.?);
+    try std.testing.expectEqualStrings("detail", owned.provider_failure_detail.?);
+    try std.testing.expectEqualStrings("[{\"id\":\"rs_1\"}]", owned.provider_state_json.?);
+    try std.testing.expectEqual(ProviderFinishReason.tool_calls, owned.finish_reason.?);
+    try std.testing.expectEqual(@as(?u64, 9), owned.usage.input_tokens);
+}
+
 test "tool result memory dupe covers every slice-bearing field" {
     // Tripwire: adding a field to ToolResultMemory requires extending
     // dupeToolResultMemory (and the dispatch-boundary copy-out that relies on
