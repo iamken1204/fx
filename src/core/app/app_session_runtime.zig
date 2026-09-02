@@ -2493,13 +2493,7 @@ pub fn Runtime(comptime App: type) type {
                 .{},
                 recovery_checkpoint.timestamp_ms,
             );
-            _ = try loaded.appendEvent(
-                app.alloc,
-                .{ .usage_checkpointed = .{ .usage = snapshot } },
-                recovery_checkpoint.timestamp_ms,
-                .retry_expected_tail,
-                .{ .checkpoint_interval = 0 },
-            );
+            _ = try loaded.appendUsageCheckpoint(app.alloc, snapshot, recovery_checkpoint.timestamp_ms);
             try store.finishUsageRecoveryCheckpoint(
                 loaded.active_id,
                 recovery_checkpoint,

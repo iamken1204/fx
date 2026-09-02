@@ -415,6 +415,14 @@ pub const TurnContext = struct {
             error.OutOfMemory => return error.OutOfMemory,
             else => return error.SessionCommitFailed,
         };
+        // Children have no app loop to checkpoint usage, so the commit does it.
+        var usage_snapshot = self.runtime.usage.snapshot(self.alloc) catch
+            return error.OutOfMemory;
+        defer usage_snapshot.deinit(self.alloc);
+        _ = self.loaded.appendUsageCheckpoint(self.alloc, usage_snapshot, timestamp_ms) catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            else => return error.SessionCommitFailed,
+        };
         self.committed = true;
     }
 
