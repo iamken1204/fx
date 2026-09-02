@@ -42,6 +42,7 @@ const runtime_deps = @import("deps.zig");
 const runtime_lifecycle = @import("lifecycle.zig");
 const runtime_prompt_context = @import("prompt_context.zig");
 const runtime_context_compaction = @import("context_compaction.zig");
+const runtime_result_eviction = @import("result_eviction.zig");
 const runtime_telemetry = @import("telemetry.zig");
 const runtime_tool_contracts = @import("tool_contracts.zig");
 const runtime_gateway_step = @import("gateway_step.zig");
@@ -4723,6 +4724,12 @@ fn processQueuedPromptLoop(
     var stable_prefix = stable_prefix_ptr.*;
     defer stable_prefix_ptr.* = stable_prefix;
     const history_messages = history_messages_ptr.*;
+    var eviction = runtime_result_eviction.State.init(
+        arena,
+        runtime_result_eviction.keepStepsFromEnv(),
+        runtime_result_eviction.thresholdBytesFromEnv(),
+        runtime_result_eviction.StorageTarget.fromSession(config.session_child_capability, config.tool_result_dir),
+    );
     var within_turn_suffix = within_turn_suffix_ptr.*;
     defer within_turn_suffix_ptr.* = within_turn_suffix;
     var local_grants = local_grants_ptr.*;
@@ -4949,13 +4956,14 @@ fn processQueuedPromptLoop(
             overlay_arena,
             &ephemeral_overlay,
         );
+        const projected_suffix = try eviction.view(overlay_arena, within_turn_suffix.items, compacted_suffix_len);
         var provider_prompt = try build_provider_prompt_with_response_language_control(
             overlay_arena,
             stable_prefix.items,
             ephemeral_overlay.items,
             history_messages.items,
             current_user_effective,
-            within_turn_suffix.items,
+            projected_suffix,
             config.origin,
             config.enforce_response_language,
             response_language_correction_attempted,
@@ -5143,7 +5151,7 @@ fn processQueuedPromptLoop(
                 ephemeral_overlay.items,
                 history_messages.items,
                 current_user_effective,
-                within_turn_suffix.items,
+                try eviction.view(overlay_arena, within_turn_suffix.items, compacted_suffix_len),
                 config.origin,
                 config.enforce_response_language,
                 response_language_correction_attempted,

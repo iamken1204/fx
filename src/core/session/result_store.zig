@@ -19,9 +19,37 @@ pub const PreparedResult = struct {
     memory: types.ToolResultMemory,
 };
 
-const StorageTarget = union(enum) {
+pub const StorageTarget = union(enum) {
     legacy_dir: []const u8,
     managed: *session_child_store.SessionChildCapability,
+
+    /// The store a turn writes tool results to: the managed capability when
+    /// the session has one, else the legacy directory, else nothing.
+    pub fn fromSession(
+        capability: ?*session_child_store.SessionChildCapability,
+        result_dir: ?[]const u8,
+    ) ?StorageTarget {
+        if (capability) |managed| return .{ .managed = managed };
+        if (result_dir) |dir| return .{ .legacy_dir = dir };
+        return null;
+    }
+
+    /// Stores `text` under a content-derived handle and returns the handle.
+    pub fn store(
+        self: StorageTarget,
+        alloc: Allocator,
+        tool_call_id: []const u8,
+        tool_name: []const u8,
+        text: []const u8,
+    ) ![]u8 {
+        const handle = try makeHandle(alloc, tool_call_id, tool_name, text);
+        errdefer alloc.free(handle);
+        switch (self) {
+            .legacy_dir => |dir| try storeLargeResultAtHandle(alloc, dir, handle, text),
+            .managed => |capability| try storeLargeResultAtHandleManaged(alloc, capability, handle, text),
+        }
+        return handle;
+    }
 };
 
 /// Read-only, validated access to a persisted redacted tool result. The
@@ -171,10 +199,7 @@ pub fn storeLargeResult(
     tool_name: []const u8,
     text: []const u8,
 ) ![]u8 {
-    const handle = try makeHandle(alloc, tool_call_id, tool_name, text);
-    errdefer alloc.free(handle);
-    try storeLargeResultAtHandle(alloc, result_dir, handle, text);
-    return handle;
+    return (StorageTarget{ .legacy_dir = result_dir }).store(alloc, tool_call_id, tool_name, text);
 }
 
 fn storeLargeResultAtHandle(
@@ -205,10 +230,7 @@ pub fn storeLargeResultManaged(
     tool_name: []const u8,
     text: []const u8,
 ) ![]u8 {
-    const handle = try makeHandle(alloc, tool_call_id, tool_name, text);
-    errdefer alloc.free(handle);
-    try storeLargeResultAtHandleManaged(alloc, capability, handle, text);
-    return handle;
+    return (StorageTarget{ .managed = capability }).store(alloc, tool_call_id, tool_name, text);
 }
 
 fn storeLargeResultAtHandleManaged(
