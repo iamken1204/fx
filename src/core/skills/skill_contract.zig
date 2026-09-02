@@ -78,6 +78,7 @@ pub const ParsedSkillFile = struct {
     name: ?[]const u8,
     description: ?[]const u8,
     description_block: ?BlockDescription = null,
+    disable_model_invocation: bool = false,
     body: []const u8,
     status: MetadataStatus,
 };
@@ -86,6 +87,7 @@ pub const SkillMetadata = struct {
     name: []const u8,
     description: []const u8,
     description_block: ?BlockDescription,
+    disable_model_invocation: bool = false,
 
     pub fn description_len(self: SkillMetadata) usize {
         return if (self.description_block) |block| block.decoded_len else self.description.len;
@@ -116,6 +118,7 @@ pub fn resolveMetadata(parsed: ParsedSkillFile, fallback_name: []const u8) Skill
             .name = parsed.name.?,
             .description = parsed.description orelse "",
             .description_block = parsed.description_block,
+            .disable_model_invocation = parsed.disable_model_invocation,
         } },
         .invalid => |cause| .{ .invalid = cause },
     };
@@ -148,6 +151,7 @@ pub fn parseSkillFile(content: []const u8) ParsedSkillFile {
     var invalid_cause: ?InvalidMetadataCause = null;
     var saw_name = false;
     var saw_description = false;
+    var disable_model_invocation = false;
     var previous_line_recognized = false;
 
     var line_offset: usize = 0;
@@ -175,6 +179,9 @@ pub fn parseSkillFile(content: []const u8) ParsedSkillFile {
             const parsed_value = parseRecognizedValue(raw_value);
             name = parsed_value.value;
             if (parsed_value.invalid_cause) |cause| setFirstInvalidCause(&invalid_cause, cause);
+        } else if (std.mem.eql(u8, key, "disable-model-invocation")) {
+            previous_line_recognized = true;
+            disable_model_invocation = std.mem.eql(u8, parseRecognizedValue(raw_value).value, "true");
         } else if (std.mem.eql(u8, key, "description")) {
             if (saw_description) setFirstInvalidCause(&invalid_cause, .duplicate_recognized_key);
             saw_description = true;
@@ -217,6 +224,7 @@ pub fn parseSkillFile(content: []const u8) ParsedSkillFile {
         .name = name,
         .description = description,
         .description_block = description_block,
+        .disable_model_invocation = disable_model_invocation,
         .body = body,
         .status = if (invalid_cause) |cause| .{ .invalid = cause } else .valid,
     };
@@ -974,4 +982,14 @@ test "validateManagedSkillName accepts plain names and rejects path shapes" {
     for (invalid_names) |name| {
         try std.testing.expectError(error.InvalidSkillName, validateManagedSkillName(name));
     }
+}
+
+test "parseSkillFile records disable-model-invocation" {
+    const parsed = parseSkillFile("---\nname: handoff\ndescription: manual only\ndisable-model-invocation: true\n---\nbody\n");
+    try std.testing.expect(parsed.status == .valid);
+    try std.testing.expect(parsed.disable_model_invocation);
+    const quoted = parseSkillFile("---\nname: handoff\ndescription: manual only\ndisable-model-invocation: \"true\"\n---\nbody\n");
+    try std.testing.expect(quoted.disable_model_invocation);
+    const plain = parseSkillFile("---\nname: deploy\ndescription: help\n---\nbody\n");
+    try std.testing.expect(!plain.disable_model_invocation);
 }

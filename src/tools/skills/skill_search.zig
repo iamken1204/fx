@@ -28,11 +28,13 @@ pub fn searchRequest(
     defer discovery.deinit(ctx.allocator);
     skill_runtime.traceDiagnostics("capability_search", discovery.diagnostics);
     try reportDiagnostics(ctx, discovery.diagnostics);
+    const visible = try skill_runtime.modelVisibleSkills(ctx.allocator, discovery.skills);
+    defer ctx.allocator.free(visible);
 
     return renderProjectedSearch(
         ctx.allocator,
         request,
-        discovery.skills,
+        visible,
         ctx.context_limits.skill_description_bytes,
         max_bytes,
     );

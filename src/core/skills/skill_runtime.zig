@@ -26,7 +26,50 @@ pub const Skill = struct {
     metadata_inode: std.Io.File.INode = 0,
     metadata_size: u64 = 0,
     metadata_mtime: std.Io.Timestamp = .zero,
+    /// `disable-model-invocation: true` keeps the skill out of the model prompt.
+    disable_model_invocation: bool = false,
 };
+
+/// Comma-separated `SkillMenuSourceFilter` names; unset advertises every source.
+pub const skill_sources_env = "FX_SKILL_SOURCES";
+
+/// First name in an `FX_SKILL_SOURCES` value that is not a source filter.
+pub fn firstUnknownSkillSourceName(value: []const u8) ?[]const u8 {
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |entry| {
+        const name = std.mem.trim(u8, entry, " \t");
+        if (name.len == 0) continue;
+        if (std.meta.stringToEnum(SkillMenuSourceFilter, name) == null) return name;
+    }
+    return null;
+}
+
+/// The skills the model may see: prompt catalog, `skill` tool, and
+/// `skill_search` all project through here. The menu keeps the full list.
+/// Entries are borrowed; free only the returned slice.
+pub fn modelVisibleSkills(alloc: Allocator, skills: []const Skill) ![]const Skill {
+    var sources: ?std.EnumSet(SkillMenuSourceFilter) = null;
+    if (io_mod.getenv(skill_sources_env)) |value| {
+        var set = std.EnumSet(SkillMenuSourceFilter).initEmpty();
+        var it = std.mem.splitScalar(u8, value, ',');
+        while (it.next()) |entry| {
+            if (std.meta.stringToEnum(SkillMenuSourceFilter, std.mem.trim(u8, entry, " \t"))) |filter| set.insert(filter);
+        }
+        sources = set;
+    }
+    const visible = try alloc.alloc(Skill, skills.len);
+    errdefer alloc.free(visible);
+    var count: usize = 0;
+    for (skills) |skill| {
+        if (skill.disable_model_invocation) continue;
+        if (sources) |set| {
+            if (!set.contains(.all) and !set.contains(skillMenuFilterForSource(skill.source))) continue;
+        }
+        visible[count] = skill;
+        count += 1;
+    }
+    return alloc.realloc(visible, count);
+}
 
 pub const BoundedPromptSection = struct {
     text: []u8,
@@ -900,6 +943,7 @@ fn appendSkillCandidate(
         .description = description,
         .path = path,
         .source = root.source,
+        .disable_model_invocation = candidate.metadata.disable_model_invocation,
         .read_authority = read_authority,
         .metadata_inode = file_stat.inode,
         .metadata_size = file_stat.size,
@@ -1785,6 +1829,7 @@ fn loadKnownSkill(alloc: Allocator, previous: Skill) !?Skill {
         .path = path,
         .source = previous.source,
         .read_authority = authority,
+        .disable_model_invocation = candidate.metadata.disable_model_invocation,
         .metadata_inode = stat.inode,
         .metadata_size = stat.size,
         .metadata_mtime = stat.mtime,
@@ -1841,6 +1886,7 @@ fn compactCloneSkills(
             .path = path,
             .source = skill.source,
             .read_authority = authority,
+            .disable_model_invocation = skill.disable_model_invocation,
             .metadata_inode = skill.metadata_inode,
             .metadata_size = skill.metadata_size,
             .metadata_mtime = skill.metadata_mtime,
@@ -2638,7 +2684,9 @@ pub const Runtime = struct {
         prompt: []const u8,
         limits: context_limits.Values,
     ) !BoundedPromptSection {
-        const ordered = try orderSkillsForPrompt(alloc, self.items, prompt);
+        const visible = try modelVisibleSkills(alloc, self.items);
+        defer alloc.free(visible);
+        const ordered = try orderSkillsForPrompt(alloc, visible, prompt);
         defer alloc.free(ordered);
         return attachCatalogDiagnostics(
             alloc,
@@ -4078,6 +4126,20 @@ test "listSkillsSummaryStyled dims only source labels" {
     try std.testing.expect(std.mem.find(u8, result, "  - managed: installed \x1b[38;5;245m[global ~/.fx/skills]\x1b[0m\n") != null);
     try std.testing.expect(std.mem.find(u8, result, "\x1b[38;5;245mmanaged") == null);
     try std.testing.expect(std.mem.find(u8, result, "\x1b[38;5;245minstalled") == null);
+}
+
+test "modelVisibleSkills hides disable-model-invocation skills" {
+    const alloc = std.testing.allocator;
+    const skills = [_]Skill{
+        .{ .name = "deploy", .description = "deployment help", .path = "/tmp/deploy", .source = .workspace_shared },
+        .{ .name = "handoff", .description = "manual only", .path = "/tmp/handoff", .source = .global_claude, .disable_model_invocation = true },
+    };
+    const visible = try modelVisibleSkills(alloc, &skills);
+    defer alloc.free(visible);
+    try std.testing.expectEqual(@as(usize, 1), visible.len);
+    try std.testing.expectEqualStrings("deploy", visible[0].name);
+    try std.testing.expectEqualStrings("claud", firstUnknownSkillSourceName("claude, claud").?);
+    try std.testing.expect(firstUnknownSkillSourceName("claude,fx") == null);
 }
 
 test "buildSkillsSystemPromptSection with no skills" {

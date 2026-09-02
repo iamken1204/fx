@@ -5158,7 +5158,8 @@ fn processQueuedPromptLoop(
             const vision_policy = visionPolicy(
                 request_capabilities.image_input_support,
                 config.provider_capabilities.vision_fallback,
-                deps.tool_registry.lookup("vision") != null,
+                deps.tool_registry.lookup("vision") != null and
+                    !tool_projection.excludedByEnvironment("vision"),
                 pending_image_ids.len > 0,
             );
             const vision_route: runtime_vision_contracts.VisionRoute = if (vision_policy.route == .fallback)

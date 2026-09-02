@@ -184,9 +184,11 @@ fn loadByIdentity(
     var discovery = try builtin_skills.loadVisibleSkillsForTool(alloc, workspace_root, skills_dir);
     defer discovery.deinit(alloc);
     skill_runtime.traceDiagnostics("skill_tool", discovery.diagnostics);
+    const visible = try skill_runtime.modelVisibleSkills(alloc, discovery.skills);
+    defer alloc.free(visible);
     return skill_invocation.loadByIdentity(
         alloc,
-        .{ .skills = discovery.skills, .diagnostics = discovery.diagnostics },
+        .{ .skills = visible, .diagnostics = discovery.diagnostics },
         name,
         location,
         resource,

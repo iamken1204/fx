@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_mod = @import("../shared/io.zig");
 const model_tool_schema = @import("model_tool_schema.zig");
 const mcp_runtime = @import("../mcp/mcp_runtime.zig");
 const permissions = @import("../permissions/permissions.zig");
@@ -667,6 +668,7 @@ fn appendBuiltinTool(
 ) !void {
     if (!tool.model_visible) return;
     if (!includeBuiltinForKind(tool.name, kind, tool_set)) return;
+    if (excludedByEnvironment(tool.name)) return;
     if (std.mem.eql(u8, tool.name, "subagent") and !options.subagent_available) return;
     if (std.mem.eql(u8, tool.name, "vision")) return;
     if (options.permission_mode != .yolo) {
@@ -685,6 +687,20 @@ fn appendBuiltinTool(
         }
         try guidance_writer.writeAll(tool.description);
     }
+}
+
+pub const exclude_tools_env = "FX_EXCLUDE_TOOLS";
+
+/// Advertisement-only trim: names listed in FX_EXCLUDE_TOOLS (comma-separated)
+/// are hidden from the model. The registry keeps every tool, so permission
+/// contracts and conditionally exposed tools are unaffected.
+pub fn excludedByEnvironment(tool_name: []const u8) bool {
+    const value = io_mod.getenv(exclude_tools_env) orelse return false;
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |entry| {
+        if (std.mem.eql(u8, std.mem.trim(u8, entry, " \t"), tool_name)) return true;
+    }
+    return false;
 }
 
 /// A provider-executed tool is never dispatched locally, so an unsettled `ask`
@@ -772,6 +788,48 @@ fn appendTestMcpServer(runtime: *mcp_runtime.McpRuntime, name: []const u8) !usiz
     const index = runtime.servers.items.len - 1;
     runtime.servers.items[index].state = .ready;
     return index;
+}
+
+var stable_test_environ: ?*std.process.Environ.Map = null;
+
+fn stableEmptyTestEnviron() !*const std.process.Environ.Map {
+    if (stable_test_environ) |map| return map;
+    const alloc = std.heap.page_allocator;
+    const map = try alloc.create(std.process.Environ.Map);
+    map.* = std.process.Environ.Map.init(alloc);
+    stable_test_environ = map;
+    return map;
+}
+
+test "FX_EXCLUDE_TOOLS hides named builtin tools from full and read-only advertisement" {
+    const stable = try stableEmptyTestEnviron();
+    var map = std.process.Environ.Map.init(std.testing.allocator);
+    defer map.deinit();
+    try map.put(exclude_tools_env, "write_file, web_search,read_file");
+    io_mod.setEnvironMap(&map);
+    defer io_mod.setEnvironMap(stable);
+
+    var full = try buildTestModelToolProjection(std.testing.allocator, .{});
+    defer full.deinit(std.testing.allocator);
+    try expectNotContainsName(full.advertised_names, "write_file");
+    try expectNotContainsName(full.advertised_names, "read_file");
+    try expectNotContainsName(full.advertised_names, "web_search");
+    try expectContainsName(full.advertised_names, "edit_file");
+    try expectContainsName(full.advertised_names, "shell");
+    try std.testing.expectEqualStrings("", full.custom_guidance);
+
+    var read_only = try buildTestReadOnlyModelToolProjection(std.testing.allocator, .{});
+    defer read_only.deinit(std.testing.allocator);
+    try expectNotContainsName(read_only.advertised_names, "read_file");
+    try expectContainsName(read_only.advertised_names, "grep_files");
+}
+
+test "unset FX_EXCLUDE_TOOLS leaves advertisement unchanged" {
+    io_mod.setEnvironMap(try stableEmptyTestEnviron());
+    var projection = try buildTestModelToolProjection(std.testing.allocator, .{});
+    defer projection.deinit(std.testing.allocator);
+    try expectContainsName(projection.advertised_names, "write_file");
+    try expectContainsName(projection.advertised_names, "read_file");
 }
 
 test "provider-executed search follows settled advertisement permission" {

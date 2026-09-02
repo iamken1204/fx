@@ -2,6 +2,7 @@ const std = @import("std");
 const auth_runtime = @import("../auth/auth_runtime.zig");
 const debug_trace = @import("../shared/debug_trace.zig");
 const io_mod = @import("../shared/io.zig");
+const skill_runtime = @import("../skills/skill_runtime.zig");
 const agent_steps = @import("../config/agent_steps.zig");
 const config_runtime = @import("../config/config_runtime.zig");
 const host = @import("../hosts/host.zig");
@@ -99,6 +100,7 @@ pub fn collect(
         snapshot.auth = try auth_runtime.loadStatusSnapshot(alloc, secret_store, null);
         try appendConfigLoadFailureCheck(&checks, alloc, "config", "failed to load config", err);
         try appendSystemPromptCheck(&checks, alloc);
+        try appendSkillSourcesCheck(&checks, alloc);
         try appendMcpConfigCheck(&checks, alloc, mcp_config_diagnostic);
         try appendAuthCheck(&checks, alloc, snapshot.auth);
         try appendConfigLoadFailureCheck(&checks, alloc, "startup", "failed to resolve startup settings", err);
@@ -122,6 +124,7 @@ pub fn collect(
     try appendConfigCheck(&checks, alloc, paths, detailed.diagnostics);
     try appendConfigDiagnosticChecks(&checks, alloc, detailed.diagnostics);
     try appendSystemPromptCheck(&checks, alloc);
+    try appendSkillSourcesCheck(&checks, alloc);
     try appendMcpConfigCheck(&checks, alloc, mcp_config_diagnostic);
     try appendAuthCheck(&checks, alloc, snapshot.auth);
     try appendResolvedStartupCheck(&snapshot, &checks, alloc, .{
@@ -545,6 +548,19 @@ fn appendCheckOwned(checks: *std.ArrayList(Check), alloc: Allocator, name: []con
         .detail = detail,
         .owned_detail = detail,
     });
+}
+
+fn appendSkillSourcesCheck(checks: *std.ArrayList(Check), alloc: Allocator) !void {
+    const value = io_mod.getenv(skill_runtime.skill_sources_env) orelse return;
+    if (skill_runtime.firstUnknownSkillSourceName(value)) |name| {
+        try appendCheckOwned(checks, alloc, "skill_sources", .fail, try std.fmt.allocPrint(
+            alloc,
+            "FX_SKILL_SOURCES names unknown source \"{s}\"; valid names: all, fx, workspace, opencode, codex, claude, agents, claw",
+            .{name},
+        ));
+        return;
+    }
+    try appendCheckOwned(checks, alloc, "skill_sources", .ok, try std.fmt.allocPrint(alloc, "FX_SKILL_SOURCES={s}", .{value}));
 }
 
 fn appendSystemPromptCheck(checks: *std.ArrayList(Check), alloc: Allocator) !void {
