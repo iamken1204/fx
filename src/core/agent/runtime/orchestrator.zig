@@ -3176,7 +3176,6 @@ noinline fn recoveryCheckpointAssistantSource(
 
 fn persistRecoveryCheckpoint(
     deps: *const AgentRuntimeDeps,
-    arena: Allocator,
     job: QueuedPrompt,
     current_turn_messages: []const ChatMessage,
     assistant_source: []const u8,
@@ -3192,8 +3191,16 @@ fn persistRecoveryCheckpoint(
     trace_ctx: TraceContext,
 ) !void {
     const effect = deps.recovery_checkpoint orelse return;
+    // The execution memory is a deep copy of every tool result accumulated so
+    // far this turn. Building it in the turn arena would retain one full copy
+    // per checkpoint for the rest of the turn (quadratic in steps), so it
+    // lives in a scratch arena instead: every effect.set sink either
+    // serializes the checkpoint or dupes it with its own allocator before
+    // returning.
+    var scratch_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer scratch_state.deinit();
     const execution = try runtime_execution_memory.buildExecutionMemory(
-        arena,
+        scratch_state.allocator(),
         current_turn_messages,
     );
     try effect.set(deps.ctx, .{
@@ -3265,11 +3272,91 @@ fn streamCompletionPtr(result: *runtime_gateway_step.StreamResult) ?*types.Model
     };
 }
 
-fn retainCompletedResultInTurnArena(result: *runtime_gateway_step.StreamResult) void {
-    switch (result.*) {
-        .completed => |*completed| completed.ownership = .borrowed,
-        .failed => {},
-    }
+/// Moves a provider result out of its attempt arena into the turn arena, which
+/// owns every byte the rest of the step reads. The copy is marked borrowed
+/// because the turn arena reclaims it on turn exit.
+fn copyStreamResultToTurnArena(
+    arena: Allocator,
+    result: runtime_gateway_step.StreamResult,
+) Allocator.Error!runtime_gateway_step.StreamResult {
+    // Tripwire: a new slice-bearing field on any of these types must be copied
+    // here before bumping its count, or it dangles once the attempt arena dies.
+    comptime std.debug.assert(@typeInfo(agent_stream_provider.Completed).@"struct".fields.len == 3);
+    comptime std.debug.assert(@typeInfo(agent_stream_provider.Failure).@"struct".fields.len == 5);
+    comptime std.debug.assert(@typeInfo(agent_stream_provider.FailureDiagnostics).@"struct".fields.len == 2);
+    comptime std.debug.assert(@typeInfo(agent_stream_provider.DeferredUsageReference).@"struct".fields.len == 7);
+    return switch (result) {
+        .completed => |completed| .{ .completed = .{
+            .completion = try types.dupeModelCompletion(arena, completed.completion),
+            .usage = switch (completed.usage) {
+                .deferred => |reference| .{ .deferred = .{
+                    .provider = reference.provider,
+                    .generation_id = try arena.dupe(u8, reference.generation_id),
+                    .scope = try arena.dupe(u8, reference.scope),
+                    .tenant = if (reference.tenant) |value| try arena.dupe(u8, value) else null,
+                    .account_id = if (reference.account_id) |value| try arena.dupe(u8, value) else null,
+                    .credential_source = reference.credential_source,
+                    .credential_identity = reference.credential_identity,
+                } },
+                else => completed.usage,
+            },
+            .ownership = .borrowed,
+        } },
+        .failed => |failure| .{ .failed = .{
+            .kind = failure.kind,
+            .detail = if (failure.detail) |value| try arena.dupe(u8, value) else null,
+            .diagnostics = .{
+                .schema = if (failure.diagnostics.schema) |value| try arena.dupe(u8, value) else null,
+                .request_shape = if (failure.diagnostics.request_shape) |value| try arena.dupe(u8, value) else null,
+            },
+            .retry_after_seconds = failure.retry_after_seconds,
+            .ownership = .borrowed,
+        } },
+    };
+}
+
+test "stream result copy survives attempt arena teardown" {
+    var attempt_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const attempt_alloc = attempt_state.allocator();
+    var turn_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer turn_state.deinit();
+    const turn_alloc = turn_state.allocator();
+
+    const completed = try copyStreamResultToTurnArena(turn_alloc, .{ .completed = .{
+        .completion = .{
+            .content = try attempt_alloc.dupe(u8, "answer"),
+            .provider_state_json = try attempt_alloc.dupe(u8, "[]"),
+        },
+        .usage = .{ .deferred = .{
+            .provider = .gateway,
+            .generation_id = try attempt_alloc.dupe(u8, "gen_1"),
+            .scope = try attempt_alloc.dupe(u8, "scope"),
+            .tenant = try attempt_alloc.dupe(u8, "team"),
+            .credential_source = .stored_key,
+            .credential_identity = null,
+        } },
+        .ownership = .owned,
+    } });
+    const failed = try copyStreamResultToTurnArena(turn_alloc, .{ .failed = .{
+        .kind = .rate_limited,
+        .detail = try attempt_alloc.dupe(u8, "slow down"),
+        .diagnostics = .{ .schema = try attempt_alloc.dupe(u8, "schema") },
+        .retry_after_seconds = 3,
+        .ownership = .owned,
+    } });
+    attempt_state.deinit();
+
+    try std.testing.expectEqualStrings("answer", completed.completed.completion.content.?);
+    try std.testing.expectEqualStrings("[]", completed.completed.completion.provider_state_json.?);
+    try std.testing.expectEqualStrings("gen_1", completed.completed.usage.deferred.generation_id);
+    try std.testing.expectEqualStrings("scope", completed.completed.usage.deferred.scope);
+    try std.testing.expectEqualStrings("team", completed.completed.usage.deferred.tenant.?);
+    try std.testing.expectEqual(agent_stream_provider.ResultOwnership.borrowed, completed.completed.ownership);
+    try std.testing.expectEqual(agent_stream_provider.FailureKind.rate_limited, failed.failed.kind);
+    try std.testing.expectEqualStrings("slow down", failed.failed.detail.?);
+    try std.testing.expectEqualStrings("schema", failed.failed.diagnostics.schema.?);
+    try std.testing.expectEqual(@as(?u64, 3), failed.failed.retry_after_seconds);
+    try std.testing.expectEqual(agent_stream_provider.ResultOwnership.borrowed, failed.failed.ownership);
 }
 
 fn isRetryableModelFailure(kind: agent_stream_provider.FailureKind) bool {
@@ -5053,6 +5140,12 @@ fn processQueuedPromptLoop(
         }
 
         while (true) {
+            // Provider scratch (request body, HTTP client, SSE parse trees)
+            // lives only for this attempt; the survivors are copied into the
+            // turn arena before `break`.
+            var attempt_arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+            defer attempt_arena_state.deinit();
+            const attempt_alloc = attempt_arena_state.allocator();
             if (reset_stream_for_next_attempt) {
                 try stream_ctx.beginRecoveryAttempt();
                 reset_stream_for_next_attempt = false;
@@ -5063,7 +5156,6 @@ fn processQueuedPromptLoop(
                 recovery_strategy = .pause;
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -5100,7 +5192,6 @@ fn processQueuedPromptLoop(
                 recovery_strategy = .pause;
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -5445,7 +5536,13 @@ fn processQueuedPromptLoop(
                             return error.InvalidContextHistoryStart;
                         }
                         const next_compaction_count = compaction_count + 1;
-                        const transaction_result = compactContextTransaction(arena, deps, .{
+                        // The promoted result copies and the compactor request
+                        // die with this block; the retained tail was copied
+                        // above and the handoff is copied out below.
+                        var compaction_arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+                        defer compaction_arena_state.deinit();
+                        const compaction_alloc = compaction_arena_state.allocator();
+                        const transaction_result = compactContextTransaction(compaction_alloc, deps, .{
                             .trigger = .automatic,
                             .provider = job.provider,
                             .working_capabilities = request_capabilities,
@@ -5491,7 +5588,7 @@ fn processQueuedPromptLoop(
                         };
                         const transaction = transaction_result orelse
                             return error.ContextCapacityExceeded;
-                        active_compaction_handoff = transaction.compacted.handoff;
+                        active_compaction_handoff = try arena.dupe(u8, transaction.compacted.handoff);
                         active_compaction_history_tail = next_compaction_history_tail;
                         compacted_suffix_len = next_compacted_suffix_len;
                         compaction_count = next_compaction_count;
@@ -5515,7 +5612,6 @@ fn processQueuedPromptLoop(
             if (job.provider == .gateway) {
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     stream_ctx.interruption_source_or(""),
@@ -5583,7 +5679,7 @@ fn processQueuedPromptLoop(
             };
             stream_result = runtime_gateway_step.streamModelCompletion(
                 deps.agent_stream_provider,
-                arena,
+                attempt_alloc,
                 model_request,
                 deps.usage,
                 deps.usage_allocator,
@@ -5612,7 +5708,6 @@ fn processQueuedPromptLoop(
                 if (recoveryPauseRequested(config)) {
                     try persistRecoveryCheckpoint(
                         deps,
-                        arena,
                         job,
                         within_turn_suffix.items,
                         try recoveryCheckpointAssistantSource(
@@ -5709,7 +5804,6 @@ fn processQueuedPromptLoop(
                 }
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -5751,7 +5845,6 @@ fn processQueuedPromptLoop(
                 if (recoveryPauseRequested(config)) {
                     try persistRecoveryCheckpoint(
                         deps,
-                        arena,
                         job,
                         within_turn_suffix.items,
                         try recoveryCheckpointAssistantSource(
@@ -5971,7 +6064,7 @@ fn processQueuedPromptLoop(
                     model_request.attempt_evidence = &replay_evidence;
                     stream_result = try runtime_gateway_step.streamModelCompletion(
                         deps.agent_stream_provider,
-                        arena,
+                        attempt_alloc,
                         model_request,
                         deps.usage,
                         deps.usage_allocator,
@@ -5992,7 +6085,7 @@ fn processQueuedPromptLoop(
             }
             if (streamCompletionPtr(&stream_result)) |completion| {
                 completion.tool_calls = try normalize_terminal_request_tool_calls(
-                    arena,
+                    attempt_alloc,
                     deps.tool_registry,
                     terminal_request_eligible,
                     completion.tool_calls,
@@ -6018,7 +6111,6 @@ fn processQueuedPromptLoop(
                 );
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -6079,7 +6171,6 @@ fn processQueuedPromptLoop(
             {
                 try persistRecoveryCheckpoint(
                     deps,
-                    arena,
                     job,
                     within_turn_suffix.items,
                     try recoveryCheckpointAssistantSource(
@@ -6130,7 +6221,7 @@ fn processQueuedPromptLoop(
                     "tool_name=vision provider_attempt={d}/{d}",
                     .{ semantic_attempt + 1, semantic_limit },
                 );
-                stream_result.deinit(arena);
+                stream_result.deinit(attempt_alloc);
                 stream_result_set = false;
                 assistant_prefill_recovery_used = true;
                 semantic_attempt += 1;
@@ -6175,7 +6266,6 @@ fn processQueuedPromptLoop(
                 if (decision.strategy == .pause) {
                     try persistRecoveryCheckpoint(
                         deps,
-                        arena,
                         job,
                         within_turn_suffix.items,
                         try recoveryCheckpointAssistantSource(
@@ -6215,7 +6305,6 @@ fn processQueuedPromptLoop(
                     if (route_changed) {
                         try persistRecoveryCheckpoint(
                             deps,
-                            arena,
                             job,
                             within_turn_suffix.items,
                             try recoveryCheckpointAssistantSource(
@@ -6263,7 +6352,7 @@ fn processQueuedPromptLoop(
                             response_completion,
                             &stream_ctx,
                         );
-                        stream_result.deinit(arena);
+                        stream_result.deinit(attempt_alloc);
                         stream_result_set = false;
                         semantic_attempt += 1;
                         recovery_strategy = decision.strategy;
@@ -6509,7 +6598,6 @@ fn processQueuedPromptLoop(
                 if (decision.strategy == .pause) {
                     try persistRecoveryCheckpoint(
                         deps,
-                        arena,
                         job,
                         within_turn_suffix.items,
                         try recoveryCheckpointAssistantSource(
@@ -6548,7 +6636,6 @@ fn processQueuedPromptLoop(
                     if (route_changed) {
                         try persistRecoveryCheckpoint(
                             deps,
-                            arena,
                             job,
                             within_turn_suffix.items,
                             try recoveryCheckpointAssistantSource(
@@ -6709,7 +6796,7 @@ fn processQueuedPromptLoop(
             successful_vision_route = vision_route;
             successful_vision_mode = vision_mode;
             successful_recovery_strategy = recovery_strategy;
-            retainCompletedResultInTurnArena(&stream_result);
+            stream_result = try copyStreamResultToTurnArena(arena, stream_result);
             if (vision_mode != .required) configured_first_tool_choice_pending = false;
             return_to_user_pending = false;
             break;
@@ -6979,7 +7066,7 @@ fn processQueuedPromptLoop(
         if (disposition == .completed) try stream_ctx.start_response();
         var step_has_visible_tool_calls = false;
         for (completion.tool_calls) |call| {
-            if (runtime_tool_presentation.activityKindForCall(arena, deps.tool_registry, call) == .ask) continue;
+            if (runtime_tool_presentation.activityKindForCall(deps.tool_registry, call) == .ask) continue;
             step_has_visible_tool_calls = true;
             break;
         }
@@ -7597,7 +7684,7 @@ fn processQueuedPromptLoop(
         const step_has_content = !terminal_provider_completion and completion.content != null and completion.content.?.len > 0;
         if (step_has_content) {
             const first_tool_is_ask = effective_tool_calls.len > 0 and
-                runtime_tool_presentation.activityKindForCall(arena, deps.tool_registry, effective_tool_calls[0]) == .ask;
+                runtime_tool_presentation.activityKindForCall(deps.tool_registry, effective_tool_calls[0]) == .ask;
             if (!first_tool_is_ask) try deps.push_text(deps.ctx, .{ .assistant_rendered = "\n" });
             silent_tool_steps = 0;
         } else {
@@ -8735,15 +8822,14 @@ fn processQueuedPromptLoop(
                 status_started = try runtime_tool_presentation.startToolVisibleLifecycle(deps, arena, turn_id, stream_ctx.provisional_statuses.presentation_group_id, tool_call, tool_display_target, advertised_dynamic_tool_names);
             }
 
-            var file_call_arena_state: std.heap.ArenaAllocator = undefined;
-            if (is_file_mutation) {
-                file_call_arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-            }
-            defer if (is_file_mutation) file_call_arena_state.deinit();
-            const call_allocator = if (is_file_mutation)
-                file_call_arena_state.allocator()
-            else
-                arena;
+            // Every call gets its own arena so decode/validate/call scratch
+            // is reclaimed when the call returns instead of accumulating in
+            // the turn arena for the rest of the turn. Everything that must
+            // outlive the call travels through result_allocator (the turn
+            // arena) inside executeToolCallAuthorized.
+            var call_arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+            defer call_arena_state.deinit();
+            const call_allocator = call_arena_state.allocator();
             const execution_call = if (is_file_mutation)
                 try types.dupeToolCall(call_allocator, tool_call)
             else
@@ -9263,7 +9349,7 @@ fn processQueuedPromptLoop(
                 };
             }
             const execution_lifecycle_id = types.ToolLifecycleId{ .turn_id = turn_id, .call_id = execution_call.id };
-            const execution_is_command = runtime_tool_presentation.activityKindForCall(arena, deps.tool_registry, tool_call) == .command;
+            const execution_is_command = runtime_tool_presentation.activityKindForCall(deps.tool_registry, tool_call) == .command;
             var execution_error: ?anyerror = null;
             var execution = deps.execute_tool_call(deps.ctx, .{
                 .call_allocator = call_allocator,
