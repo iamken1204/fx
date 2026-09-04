@@ -754,6 +754,36 @@ fn sessionFromToken(alloc: Allocator, token: *TokenSet, now_ms: i64) !chatgpt_se
 }
 
 pub fn extractAccountId(alloc: Allocator, token: []const u8) ![]u8 {
+    return extractNamespacedClaim(alloc, token, jwt_auth_claim, "chatgpt_account_id");
+}
+
+pub fn extractAccountEmail(alloc: Allocator, token: []const u8) !?[]u8 {
+    const email = extractNamespacedClaim(
+        alloc,
+        token,
+        "https://api.openai.com/profile",
+        "email",
+    ) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        else => return null,
+    };
+    if (validAccountEmail(email)) return email;
+    alloc.free(email);
+    return null;
+}
+
+fn validAccountEmail(email: []const u8) bool {
+    if (email.len == 0 or email.len > 320) return false;
+    for (email) |byte| if (byte <= 0x20 or byte >= 0x7f) return false;
+    return std.mem.findScalar(u8, email, '@') != null;
+}
+
+fn extractNamespacedClaim(
+    alloc: Allocator,
+    token: []const u8,
+    namespace: []const u8,
+    key: []const u8,
+) ![]u8 {
     var parts = std.mem.splitScalar(u8, token, '.');
     _ = parts.next() orelse return error.InvalidChatGptAccessToken;
     const payload = parts.next() orelse return error.InvalidChatGptAccessToken;
@@ -771,9 +801,9 @@ pub fn extractAccountId(alloc: Allocator, token: []const u8) ![]u8 {
         return error.InvalidChatGptAccessToken;
     defer parsed.deinit();
     if (parsed.value != .object) return error.InvalidChatGptAccessToken;
-    const claim = parsed.value.object.get(jwt_auth_claim) orelse return error.InvalidChatGptAccessToken;
+    const claim = parsed.value.object.get(namespace) orelse return error.InvalidChatGptAccessToken;
     if (claim != .object) return error.InvalidChatGptAccessToken;
-    return dupeRequiredString(alloc, claim.object, "chatgpt_account_id") catch
+    return dupeRequiredString(alloc, claim.object, key) catch
         return error.InvalidChatGptAccessToken;
 }
 
@@ -946,6 +976,24 @@ test "ChatGPT account id is extracted from the namespaced JWT claim" {
     const account_id = try extractAccountId(alloc, token);
     defer alloc.free(account_id);
     try std.testing.expectEqualStrings("acct_test", account_id);
+}
+
+test "Codex account email comes from the access token profile" {
+    const alloc = std.testing.allocator;
+    const payload =
+        \\{"https://api.openai.com/profile":{"email":"user@example.com"}}
+    ;
+    const encoded_len = std.base64.url_safe_no_pad.Encoder.calcSize(payload.len);
+    const encoded = try alloc.alloc(u8, encoded_len);
+    defer alloc.free(encoded);
+    _ = std.base64.url_safe_no_pad.Encoder.encode(encoded, payload);
+    const token = try std.fmt.allocPrint(alloc, "header.{s}.signature", .{encoded});
+    defer alloc.free(token);
+
+    const email = (try extractAccountEmail(alloc, token)).?;
+    defer alloc.free(email);
+    try std.testing.expectEqualStrings("user@example.com", email);
+    try std.testing.expect((try extractAccountEmail(alloc, "invalid")) == null);
 }
 
 test "Codex refresh uses JSON and accepts omitted token rotation and lifetime" {

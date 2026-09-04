@@ -24,6 +24,8 @@ const provider_runtime = @import("provider_runtime.zig");
 
 const ProviderPickerStage = picker_state.ProviderPickerStage;
 const max_options = provider_picker_catalog.max_column_options;
+const current_annotation_suffix = " · current";
+const account_annotation_capacity = 512;
 
 /// Scratch for one column: stack-local in key handlers, container-retained in
 /// the render path. Team labels borrow from the auth runtime's team list, so
@@ -32,10 +34,29 @@ pub const ColumnBuffer = struct {
     labels: [max_options][]const u8 = undefined,
     annotations: [max_options][]const u8 = undefined,
     count: usize = 0,
-    /// Backing bytes for the API key column, whose single row is composed per
-    /// frame rather than picked from a list.
+    /// Backing bytes for values composed per frame rather than picked from a list.
     field: [provider_picker_catalog.max_key_field_bytes]u8 = undefined,
+    account_annotation: [account_annotation_capacity]u8 = undefined,
 };
+
+fn writeAccountAnnotation(
+    out: *[account_annotation_capacity]u8,
+    account_email: ?[]const u8,
+    account_id: ?[]const u8,
+) ?[]const u8 {
+    if (account_email) |email| {
+        return std.fmt.bufPrint(out, "{s}{s}", .{ email, current_annotation_suffix }) catch null;
+    }
+    const id = account_id orelse return null;
+    if (id.len <= 9) {
+        return std.fmt.bufPrint(out, "{s}{s}", .{ id, current_annotation_suffix }) catch null;
+    }
+    return std.fmt.bufPrint(out, "{s}…{s}{s}", .{
+        id[0..5],
+        id[id.len - 4 ..],
+        current_annotation_suffix,
+    }) catch null;
+}
 
 /// Hosts without a composer, an auth runtime, a provider selection, or native
 /// auth have no `/provider` picker; every entry point below is inert for them.
@@ -72,7 +93,14 @@ pub fn Runtime(comptime App: type) type {
                         column.labels[i] = slug;
                         const id = provider_catalog.parse(slug) orelse .gateway;
                         column.annotations[i] = if (id == active_provider and
-                            model_provider.authorizesCredential(id, app.auth.credentialSource())) "current" else "";
+                            model_provider.authorizesCredential(id, app.auth.credentialSource()))
+                            writeAccountAnnotation(
+                                &column.account_annotation,
+                                app.auth.accountEmail(),
+                                app.auth.accountId(),
+                            ) orelse "current"
+                        else
+                            "";
                     }
                 },
                 .method => {
@@ -601,12 +629,22 @@ const ColumnTestApp = struct {
 
     const TestAuth = struct {
         source: ?credentials.Source = null,
+        account_id: ?[]const u8 = null,
+        account_email: ?[]const u8 = null,
         mask_count: usize = 0,
         save_in_flight: bool = false,
         available: auth_runtime.SourceSet = .empty,
 
         fn credentialSource(self: *const TestAuth) ?credentials.Source {
             return self.source;
+        }
+
+        fn accountId(self: *const TestAuth) ?[]const u8 {
+            return self.account_id;
+        }
+
+        fn accountEmail(self: *const TestAuth) ?[]const u8 {
+            return self.account_email;
         }
 
         fn pickerView(self: *const TestAuth) auth_runtime.PickerView {
@@ -684,6 +722,58 @@ test "provider column requires matching authentication for a current annotation"
     }
     app.auth.source = .host_managed;
     try std.testing.expectEqualStrings("current", columnFor(&app, .provider, "").annotations[0]);
+}
+
+test "active provider shows its account identity" {
+    const alloc = std.testing.allocator;
+    var app = ColumnTestApp.init(alloc);
+    defer app.deinit();
+    app.provider_selection.active_provider = .codex;
+    app.auth.source = .chatgpt_subscription;
+    app.auth.account_id = "acct_123456789";
+    app.auth.account_email = "user@example.com";
+
+    var column: ColumnBuffer = .{};
+    _ = Runtime(ColumnTestApp).columnOptions(&app, .{
+        .stage = .provider,
+        .prefix = "/provider ",
+        .query = "codex",
+        .token_start = 0,
+    }, &column);
+    try std.testing.expectEqual(@as(usize, 1), column.count);
+    try std.testing.expectEqualStrings("codex", column.labels[0]);
+    try std.testing.expectEqualStrings("user@example.com · current", column.annotations[0]);
+
+    app.auth.account_email = null;
+    _ = Runtime(ColumnTestApp).columnOptions(&app, .{
+        .stage = .provider,
+        .prefix = "/provider ",
+        .query = "codex",
+        .token_start = 0,
+    }, &column);
+    try std.testing.expectEqualStrings("acct_…6789 · current", column.annotations[0]);
+
+    var oversized_email: [account_annotation_capacity + 1]u8 = @splat('a');
+    oversized_email[1] = '@';
+    app.auth.account_email = &oversized_email;
+    _ = Runtime(ColumnTestApp).columnOptions(&app, .{
+        .stage = .provider,
+        .prefix = "/provider ",
+        .query = "codex",
+        .token_start = 0,
+    }, &column);
+    try std.testing.expectEqualStrings("current", column.annotations[0]);
+
+    app.provider_selection.active_provider = .grok;
+    app.auth.source = .grok_subscription;
+    app.auth.account_email = "grok@example.com";
+    _ = Runtime(ColumnTestApp).columnOptions(&app, .{
+        .stage = .provider,
+        .prefix = "/provider ",
+        .query = "grok",
+        .token_start = 0,
+    }, &column);
+    try std.testing.expectEqualStrings("grok@example.com · current", column.annotations[0]);
 }
 
 test "provider column narrows to what was typed" {

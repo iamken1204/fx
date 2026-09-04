@@ -1508,6 +1508,12 @@ pub const Runtime = struct {
         return credential.accountId();
     }
 
+    pub fn accountEmail(self: *const Self) ?[]const u8 {
+        if (self.auth_mode == .host_managed) return null;
+        const credential = self.selected_credential orelse return null;
+        return credential.accountEmail();
+    }
+
     pub fn gatewayTeam(self: *const Self) ?[]const u8 {
         const credential = self.gatewayCredential() orelse return null;
         return credential.gateway_team;
@@ -2296,6 +2302,7 @@ pub const Runtime = struct {
         self.credential_failure = null;
         credential.token = &.{};
         credential.account_id = null;
+        credential.account_email = null;
         credential.team_id = null;
         credential.team_slug = null;
         self.source_inventory.insert(source);
