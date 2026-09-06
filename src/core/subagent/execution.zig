@@ -514,6 +514,13 @@ pub const TurnContext = struct {
     ) CommitError!void {
         if (self.committed) return error.TurnAlreadyCommitted;
         try self.appendCommittedHistory(work_id, turn, total_input_tokens, total_output_tokens, timestamp_ms);
+        var usage_snapshot = self.runtime.usage.snapshot(self.alloc) catch
+            return error.OutOfMemory;
+        defer usage_snapshot.deinit(self.alloc);
+        _ = self.loaded.appendUsageCheckpoint(self.alloc, usage_snapshot, timestamp_ms) catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            else => return error.SessionCommitFailed,
+        };
         self.committed = true;
     }
 
