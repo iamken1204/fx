@@ -101,6 +101,70 @@ pub fn installAbnormalExitHandlers(tmux: ?[]const u8) void {
     old_sighup_action = old_hup;
 }
 
+/// Parks the faulting thread forever after a `SIGTRAP` so the process stays
+/// inspectable: libmalloc reports heap corruption with a `brk` trap, and the
+/// default disposition kills the process before `malloc_history` can name the
+/// owner of the corrupted block. Enabled by `FX_HOLD_ON_TRAP`; other threads,
+/// including the UI, keep running. Must remain async-signal-safe: only
+/// `write(2)`, `getpid(2)`, and `nanosleep(2)`.
+fn readWord(base: usize, offset: usize) u64 {
+    const ptr: *const u64 = @ptrFromInt(base + offset);
+    return ptr.*;
+}
+
+// Darwin arm64 mcontext64 layout: 16-byte exception state, then thread state
+// whose 29 general registers start at offset 16. The corrupted-block address
+// libmalloc reports lives in x0/x1 at the `brk`, so print the low registers
+// plus lr/pc. The x registers are plain integers even on arm64e.
+fn holdOnTrapHandler(sig: std.posix.SIG, info: *const std.posix.siginfo_t, uctx: ?*anyopaque) callconv(.c) void {
+    _ = sig;
+    _ = info;
+    var buf: [320]u8 = undefined;
+    const msg = if (uctx) |raw| blk: {
+        const uctx_addr: usize = @intFromPtr(raw);
+        const mctx: usize = @intCast(readWord(uctx_addr, 48)); // uc_mcontext
+        const x = struct {
+            fn r(m: usize, i: usize) u64 {
+                return readWord(m, 16 + 8 * i);
+            }
+        };
+        break :blk std.fmt.bufPrint(
+            &buf,
+            "\nfx: SIGTRAP held pid {d}; x0=0x{x} x1=0x{x} x2=0x{x} x3=0x{x} x4=0x{x} lr=0x{x} pc=0x{x}\nfx: run: malloc_history {d} <the heap-range x register>\n",
+            .{
+                std.c.getpid(),
+                x.r(mctx, 0),
+                x.r(mctx, 1),
+                x.r(mctx, 2),
+                x.r(mctx, 3),
+                x.r(mctx, 4),
+                readWord(mctx, 256),
+                readWord(mctx, 272),
+                std.c.getpid(),
+            },
+        ) catch "\nfx: SIGTRAP held for inspection\n";
+    } else std.fmt.bufPrint(
+        &buf,
+        "\nfx: SIGTRAP held for inspection, pid {d}\n",
+        .{std.c.getpid()},
+    ) catch "\nfx: SIGTRAP held for inspection\n";
+    _ = std.c.write(std.posix.STDERR_FILENO, msg.ptr, msg.len);
+    while (true) {
+        const ts: std.c.timespec = .{ .sec = 3600, .nsec = 0 };
+        _ = std.c.nanosleep(&ts, null);
+    }
+}
+
+pub fn installHoldOnTrap() void {
+    if (io_mod.getenv("FX_HOLD_ON_TRAP") == null) return;
+    const act: std.posix.Sigaction = .{
+        .handler = .{ .sigaction = holdOnTrapHandler },
+        .mask = std.posix.sigemptyset(),
+        .flags = std.c.SA.SIGINFO,
+    };
+    std.posix.sigaction(std.posix.SIG.TRAP, &act, null);
+}
+
 pub fn uninstallAbnormalExitHandlers() void {
     if (!shell_runtime.supports_resize_signal) return;
 
@@ -678,6 +742,7 @@ pub fn bootstrapInteractiveApp(cfg: BootstrapConfig) !StartupState {
     try cfg.terminal.enableRawMode();
     cfg.terminal.installResizeSignal(cfg.resize_handler);
     installAbnormalExitHandlers(io_mod.getenv("TMUX"));
+    installHoldOnTrap();
     cfg.shell.layout = try cfg.terminal.queryLayout(cfg.footer_rows);
 
     record_tape.configureFromEnv(
