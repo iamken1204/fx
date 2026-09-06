@@ -286,6 +286,7 @@ pub const Credential = struct {
     token: []u8,
     source: Source,
     account_id: ?[]u8 = null,
+    account_email: ?[]u8 = null,
     team_id: ?[]u8 = null,
     team_slug: ?[]u8 = null,
     refresh_after_ms: ?i64 = null,
@@ -295,6 +296,8 @@ pub const Credential = struct {
         errdefer secret.zeroAndFree(alloc, token);
         const account_id = if (self.account_id) |value| try alloc.dupe(u8, value) else null;
         errdefer if (account_id) |value| alloc.free(value);
+        const account_email = if (self.account_email) |value| try alloc.dupe(u8, value) else null;
+        errdefer if (account_email) |value| alloc.free(value);
         const team_id = if (self.team_id) |value| try alloc.dupe(u8, value) else null;
         errdefer if (team_id) |value| alloc.free(value);
         const team_slug = if (self.team_slug) |value| try alloc.dupe(u8, value) else null;
@@ -303,6 +306,7 @@ pub const Credential = struct {
             .token = token,
             .source = self.source,
             .account_id = account_id,
+            .account_email = account_email,
             .team_id = team_id,
             .team_slug = team_slug,
             .refresh_after_ms = self.refresh_after_ms,
@@ -312,6 +316,7 @@ pub const Credential = struct {
     pub fn deinit(self: *Credential, alloc: std.mem.Allocator) void {
         secret.zeroAndFree(alloc, self.token);
         if (self.account_id) |account_id| alloc.free(account_id);
+        if (self.account_email) |email| alloc.free(email);
         if (self.team_id) |team| alloc.free(team);
         if (self.team_slug) |team| alloc.free(team);
         self.* = undefined;
@@ -324,6 +329,10 @@ pub const Credential = struct {
 
     pub fn accountId(self: Credential) ?[]const u8 {
         return self.account_id;
+    }
+
+    pub fn accountEmail(self: Credential) ?[]const u8 {
+        return self.account_email;
     }
 
     pub fn needsRefreshAt(self: Credential, now_ms: i64) bool {
@@ -654,6 +663,8 @@ fn loadChatGptCredential(
     try requireSourceStorage(.chatgpt_subscription);
     var access = (try chatgpt_oauth.loadAccess(alloc, transport, mode)) orelse return null;
     defer access.deinit(alloc);
+    const account_email = try chatgpt_oauth.extractAccountEmail(alloc, access.access_token);
+    errdefer if (account_email) |email| alloc.free(email);
     const token = access.access_token;
     access.access_token = &.{};
     const account_id = access.account_id;
@@ -662,6 +673,7 @@ fn loadChatGptCredential(
         .token = token,
         .source = .chatgpt_subscription,
         .account_id = account_id,
+        .account_email = account_email,
         .refresh_after_ms = access.refresh_after_ms,
     };
 }
@@ -1078,6 +1090,7 @@ test "credential clone owns every secret and authority field independently" {
         .token = try alloc.dupe(u8, "token"),
         .source = .fx_login,
         .account_id = try alloc.dupe(u8, "acct_1"),
+        .account_email = try alloc.dupe(u8, "user@example.com"),
         .team_id = try alloc.dupe(u8, "team_1"),
         .team_slug = try alloc.dupe(u8, "team-one"),
         .refresh_after_ms = 100,
@@ -1090,6 +1103,8 @@ test "credential clone owns every secret and authority field independently" {
     try std.testing.expect(original.token.ptr != cloned.token.ptr);
     try std.testing.expectEqualStrings(original.account_id.?, cloned.account_id.?);
     try std.testing.expect(original.account_id.?.ptr != cloned.account_id.?.ptr);
+    try std.testing.expectEqualStrings(original.account_email.?, cloned.account_email.?);
+    try std.testing.expect(original.account_email.?.ptr != cloned.account_email.?.ptr);
     try std.testing.expectEqualStrings(original.team_id.?, cloned.team_id.?);
     try std.testing.expectEqualStrings(original.team_slug.?, cloned.team_slug.?);
     try std.testing.expectEqual(original.refresh_after_ms, cloned.refresh_after_ms);
