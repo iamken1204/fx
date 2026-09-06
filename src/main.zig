@@ -1032,8 +1032,8 @@ const App = struct {
         try InputSubmitRuntime.resumePromptAfterAuth(self, max_prompt_history);
     }
 
-    pub fn runLoginCommand(self: *App) !void {
-        try AuthAppRuntime.runLoginCommand(self);
+    pub fn runLoginCommand(self: *App, target: []const u8) !void {
+        try AuthAppRuntime.runLoginCommand(self, target);
     }
 
     pub fn runLogoutCommand(self: *App, target: []const u8) !void {

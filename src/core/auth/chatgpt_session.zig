@@ -5,6 +5,7 @@ const host = @import("../hosts/host.zig");
 const io_mod = @import("../shared/io.zig");
 const profile_paths = @import("../shared/profile_paths.zig");
 const types = @import("../shared/types.zig");
+const chatgpt_accounts = @import("chatgpt_accounts.zig");
 const secret = @import("secret.zig");
 const session_presence = @import("session_presence.zig");
 
@@ -149,6 +150,7 @@ pub fn saveNewSession(alloc: Allocator, session: Session) !void {
     if (comptime host_target.is_wasm) return error.ChatGptOAuthUnavailable;
     var mutation = try beginMutation();
     defer mutation.deinit();
+    try chatgpt_accounts.stashActive(alloc, &mutation, session.account_id);
     try mutation.save(alloc, session);
 }
 

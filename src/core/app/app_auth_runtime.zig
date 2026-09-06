@@ -9,6 +9,7 @@ const credentials = @import("../auth/credentials.zig");
 const auth_runtime = @import("../auth/auth_runtime.zig");
 const login_flow = @import("../auth/login_flow.zig");
 const chatgpt_oauth = @import("../auth/chatgpt_oauth.zig");
+const chatgpt_accounts = @import("../auth/chatgpt_accounts.zig");
 const grok_oauth = @import("../auth/grok_oauth.zig");
 const provider_catalog = @import("../auth/provider_catalog.zig");
 const auth_transition = @import("../auth/auth_transition.zig");
@@ -230,7 +231,7 @@ pub fn Runtime(comptime App: type) type {
             return false;
         }
 
-        pub fn runLoginCommand(app: *App) !void {
+        pub fn runLoginCommand(app: *App, target: []const u8) !void {
             if (hostManagesAuth(app)) {
                 try writeAuthNotice(app, .{ .topic = "auth", .tone = .neutral, .body = credentials.host_managed_auth_message });
                 return;
@@ -247,7 +248,83 @@ pub fn Runtime(comptime App: type) type {
                 try beginSignIn(app, false);
                 return;
             }
+            // The inline picker owns `/login` and `/login codex`; only a
+            // second word reaches here. `/login codex new` signs in another
+            // Codex account without touching the stored ones, and
+            // `/login codex <email|account id>` activates a stored account.
+            var words = std.mem.tokenizeAny(u8, target, " \t\r\n");
+            if (words.next()) |provider| if (provider_catalog.parse(provider) == .codex) {
+                if (words.next()) |account| {
+                    if (std.mem.eql(u8, account, "new")) return beginChatGptSignIn(app);
+                    return switchCodexAccount(app, account);
+                }
+            };
             try beginProviderPickerInventoryRefresh(app, .provider_picker_login);
+        }
+
+        fn switchCodexAccount(app: *App, account: []const u8) !void {
+            if (try rejectPendingPreparation(app)) return;
+            if (auth_transition.provider_work_busy(
+                app.stream.active or pendingPromptBlocksPreparation(app),
+                app.worker.queuedPromptCount(),
+            )) {
+                try writeAuthNotice(app, .{
+                    .topic = "auth",
+                    .tone = .warning,
+                    .body = "Codex account switching is unavailable until active and queued work finishes.",
+                });
+                return;
+            }
+            try app.flushBeforeBlockingExternalWork();
+            const label = chatgpt_accounts.activate(app.alloc, account) catch |err| switch (err) {
+                error.OutOfMemory => return err,
+                error.NoSuchAccount => return writeStoredCodexAccounts(app, account),
+                else => {
+                    debug_trace.logf("auth", "Codex account switch failed err={s}", .{@errorName(err)});
+                    try writeAuthNotice(app, .{
+                        .topic = "auth",
+                        .tone = .@"error",
+                        .body = "Could not switch the Codex account. The current account is unchanged.",
+                    });
+                    return;
+                },
+            };
+            defer app.alloc.free(label);
+            // The active file changed under a live Codex credential, so the
+            // runtime must adopt it now instead of at the next prompt.
+            if (app.auth.credentialSource() == .chatgpt_subscription and
+                !try selectCredentialSource(app, .chatgpt_subscription))
+            {
+                try writeAuthNotice(app, .{
+                    .topic = "auth",
+                    .tone = .@"error",
+                    .body = "The stored Codex account could not be loaded. Switch back with /login codex <account> or sign in again with /login codex new.",
+                });
+                return;
+            }
+            const body = try std.fmt.allocPrint(app.alloc, "Switched Codex account to {s}.", .{label});
+            defer app.alloc.free(body);
+            try writeAuthNotice(app, .{ .topic = "auth", .tone = .neutral, .body = body });
+        }
+
+        fn writeStoredCodexAccounts(app: *App, query: []const u8) !void {
+            const stored = chatgpt_accounts.list(app.alloc) catch |err| switch (err) {
+                error.OutOfMemory => return err,
+                else => try app.alloc.alloc(chatgpt_accounts.Stored, 0),
+            };
+            defer chatgpt_accounts.freeList(app.alloc, stored);
+            var body: std.Io.Writer.Allocating = .init(app.alloc);
+            defer body.deinit();
+            try body.writer.print("No stored Codex account matches {s}.", .{query});
+            if (stored.len == 0) {
+                try body.writer.writeAll(" Sign in with /login codex new to add one.");
+            } else {
+                try body.writer.writeAll(" Stored:");
+                for (stored, 0..) |entry, index| {
+                    try body.writer.print("{s} {s}", .{ if (index == 0) "" else ",", entry.label() });
+                }
+            }
+            try writeAuthNotice(app, .{ .topic = "auth", .tone = .warning, .body = body.written() });
         }
 
         pub fn runLogoutCommand(app: *App, target: []const u8) !void {
@@ -2724,7 +2801,7 @@ test "login prepares the inline picker before its asynchronous inventory refresh
     var app: TestApp = .{ .selected_provider = .grok };
     defer app.deinit();
 
-    try Runtime(TestApp).runLoginCommand(&app);
+    try Runtime(TestApp).runLoginCommand(&app, "");
 
     try std.testing.expectEqual(@as(usize, 1), app.auth.source_inventory_refresh_count);
     try std.testing.expect(!app.auth.picker_opened);
@@ -2736,12 +2813,25 @@ test "login prepares the inline picker before its asynchronous inventory refresh
     try std.testing.expect(app.shell.render_requests.footer_requested);
 }
 
+test "login codex new signs in another account and switching waits for idle work" {
+    var app: TestApp = .{ .selected_provider = .codex };
+    defer app.deinit();
+
+    try Runtime(TestApp).runLoginCommand(&app, "codex new");
+    try std.testing.expectEqual(@as(usize, 1), app.auth.sign_in_start_count);
+    try std.testing.expectEqual(@as(usize, 0), app.auth.source_inventory_refresh_count);
+
+    app.stream.active = true;
+    try Runtime(TestApp).runLoginCommand(&app, "codex someone@example.com");
+    try std.testing.expect(std.mem.indexOf(u8, app.transcript.items, "account switching is unavailable") != null);
+}
+
 test "provider picker preserves type-ahead cursor undo and dismissal through inventory completion" {
     for ([_]bool{ false, true }) |login| {
         var app: TestApp = .{};
         defer app.deinit();
         if (login) {
-            try Runtime(TestApp).runLoginCommand(&app);
+            try Runtime(TestApp).runLoginCommand(&app, "");
         } else {
             try Runtime(TestApp).runProviderCommand(&app);
         }
@@ -2794,7 +2884,7 @@ test "provider picker repeated opening preserves input while inventory is pendin
     try Runtime(TestApp).runProviderCommand(&app);
     try app.input_runtime.insertionState().insertSlice(app.alloc, "codex", .preserve);
 
-    try Runtime(TestApp).runLoginCommand(&app);
+    try Runtime(TestApp).runLoginCommand(&app, "");
     try std.testing.expectEqual(@as(usize, 1), app.auth.source_inventory_refresh_count);
     try std.testing.expectEqualStrings("/provider codex", app.input_runtime.edit_state.input.items);
     try Runtime(TestApp).collectSourceInventoryFacts(&app);
@@ -2833,7 +2923,7 @@ test "provider picker rejects active and queued work before refreshing inventory
             try app.input_runtime.textReplacementState().replace(app.alloc, "existing draft");
 
             if (login) {
-                try Runtime(TestApp).runLoginCommand(&app);
+                try Runtime(TestApp).runLoginCommand(&app, "");
             } else {
                 try Runtime(TestApp).runProviderCommand(&app);
             }
@@ -2858,7 +2948,7 @@ test "provider picker rechecks work before publishing a completed refresh" {
             var app: TestApp = .{};
             defer app.deinit();
             if (login) {
-                try Runtime(TestApp).runLoginCommand(&app);
+                try Runtime(TestApp).runLoginCommand(&app, "");
             } else {
                 try Runtime(TestApp).runProviderCommand(&app);
             }
@@ -2877,7 +2967,7 @@ test "provider picker rechecks work before publishing a completed refresh" {
             app.stream.active = false;
             app.worker.queued_prompts = 0;
             if (login) {
-                try Runtime(TestApp).runLoginCommand(&app);
+                try Runtime(TestApp).runLoginCommand(&app, "");
             } else {
                 try Runtime(TestApp).runProviderCommand(&app);
             }
@@ -2896,7 +2986,7 @@ test "login inventory failure leaves the picker closed and reports one error" {
     defer app.deinit();
     app.auth.inventory_refresh_fails = true;
 
-    try Runtime(TestApp).runLoginCommand(&app);
+    try Runtime(TestApp).runLoginCommand(&app, "");
     try app.input_runtime.insertionState().insertSlice(app.alloc, "codex", .preserve);
     try Runtime(TestApp).collectSourceInventoryFacts(&app);
     try Runtime(TestApp).collectSourceInventoryFacts(&app);
