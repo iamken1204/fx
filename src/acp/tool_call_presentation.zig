@@ -46,7 +46,7 @@ pub fn describeToolTitle(registry: tool_dispatch.Registry, arena: Allocator, cal
             .call = call,
         });
     }
-    if (tool_dispatch.toolCallPresentation(arena, registry, call)) |presentation| {
+    if (tool_dispatch.toolCallPresentation(registry, call)) |presentation| {
         return std.fmt.allocPrint(arena, "{s}", .{presentation.action_label});
     }
     return std.fmt.allocPrint(arena, "{s}", .{call.name});
