@@ -5999,6 +5999,90 @@ printf '%s' ${JSON.stringify(trailingMarker)} > ${JSON.stringify(effectPath)}
     }
   }, 100_000);
 
+  test("legacy eviction variables preserve full skill results until automatic compaction", async () => {
+    const root = createFixtureRoot("no-result-eviction");
+    const tracePath = join(root.root, "trace.log");
+    const skillName = "retain-instructions";
+    const skillDirectory = join(root.home, ".fx", "skills", skillName);
+    const skillBody = `KEEP_THESE_INSTRUCTIONS\n${"skill instruction text ".repeat(1000)}\nSKILL_END`;
+    mkdirSync(skillDirectory, { recursive: true });
+    writeFileSync(join(skillDirectory, "SKILL.md"), `---\nname: ${skillName}\ndescription: retention fixture\n---\n\n${skillBody}\n`);
+    writeFileSync(join(root.workspace, "small.txt"), "OLDER_RESULT_BODY\n");
+    const largeBody = `LARGE_RESULT_START\n${(`${"stored result text ".repeat(16)}\n`).repeat(100)}LARGE_RESULT_END\n`;
+    writeFileSync(join(root.workspace, "large.txt"), largeBody);
+    let step = 0;
+    let compactions = 0;
+    let handle = "";
+    let originalSkillOutput = "";
+    const gateway = startDynamicFakeGateway((body) => {
+      if (JSON.parse(body).tools.length === 0) {
+        compactions++;
+        expect(body).toContain("KEEP_THESE_INSTRUCTIONS");
+        return fakeGatewayFinalText(`Continue by retrieving LARGE_RESULT_END from ${handle}.`);
+      }
+      const index = step++;
+      if (index === 0) {
+        const locations = advertisedSkillLocations(body, skillName);
+        expect(locations).toHaveLength(1);
+        return fakeGatewayToolCall("loaded-skill", "skill", { location: locations[0]! });
+      }
+      if (index <= 6) {
+        const output = toolResultOutput(body, "loaded-skill");
+        expect(output).toContain(skillBody);
+        if (index === 1) originalSkillOutput = output;
+        expect(output).toBe(originalSkillOutput);
+        expect(compactions).toBe(0);
+        expect(body).not.toContain("cleared from the request to save context");
+      }
+      if (index >= 2 && index <= 6) {
+        expect(toolResultOutput(body, "small-1")).toContain("OLDER_RESULT_BODY");
+      }
+      if (index <= 4) return fakeGatewayToolCall(`small-${index}`, "read_file", { path: "small.txt" });
+      if (index === 5) return fakeGatewayToolCall("large-result", "read_file", { path: "large.txt" });
+      if (index === 6) {
+        const output = toolResultOutput(body, "large-result");
+        handle = output.match(/<tool_result_handle>([^<]+)<\/tool_result_handle>/)?.[1] ?? "";
+        expect(handle).not.toBe("");
+        expect(output).toContain("LARGE_RESULT_START");
+        return fakeGatewaySse([
+          { type: "tool-call", toolCallId: "read-before-compact", toolName: "read_tool_result", input: { request: { handle, query: "LARGE_RESULT_END" } } },
+          { type: "finish", finishReason: { unified: "tool-calls", raw: "tool-calls" }, usage: { inputTokens: { total: 120000 }, outputTokens: { total: 10 } } },
+        ]);
+      }
+      if (index === 7) {
+        expect(compactions).toBe(1);
+        expect(body).toContain("context_handoff");
+        expect(toolResultOutput(body, "read-before-compact")).toContain("LARGE_RESULT_END");
+        return fakeGatewayToolCall("read-after-compact", "read_tool_result", { request: { handle, query: "LARGE_RESULT_END" } });
+      }
+      expect(index).toBe(8);
+      expect(toolResultOutput(body, "read-after-compact")).toContain("LARGE_RESULT_END");
+      return fakeGatewayFinalText("RETENTION_AND_COMPACTION_COMPLETE");
+    }, { models: [{ id: MODEL, type: "language", tags: ["tool-use"], context_window: 128000 }] });
+    try {
+      const result = await runFx(["ask", "--json", "--yolo", "Exercise the skill retention and stored result fixture."], {
+        cwd: root.workspace,
+        env: {
+          ...fixtureEnv(root, gateway, tracePath),
+          FX_AUTO_UPGRADE: "0",
+          FX_SKILL_SOURCES: "fx",
+          FX_KEEP_RECENT_RESULTS: "1",
+          FX_EVICT_THRESHOLD_KB: "1",
+          FX_E2E_DISABLE_DOTENV: "1",
+        },
+        timeoutMs: 30000,
+      });
+      expect(result.code).toBe(0);
+      expect(JSON.parse(result.stdout).final_output).toBe("RETENTION_AND_COMPACTION_COMPLETE");
+      expect(result.stderr).toBe("Full access enabled: fx permission checks disabled\nLoading skill retain-instructions\nReading small.txt\nReading small.txt\nReading small.txt\nReading small.txt\nReading large.txt\nReading tool result\nReading tool result\n");
+      expect(step).toBe(9);
+      expect(compactions).toBe(1);
+    } finally {
+      gateway.stop();
+      rmSync(root.root, { recursive: true, force: true });
+    }
+  }, 30000);
+
   for (const trigger of ["automatic", "manual"] as const) {
     test.skipIf(!tmuxAvailable())(
       `oversized result retrieval survives empty ${trigger} summary recovery and restart`,
