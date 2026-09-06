@@ -19,6 +19,47 @@ pub const skill_menu_max_visible_rows: u16 = 4;
 
 pub const Skill = skill_contract.Skill;
 
+/// Comma-separated `SkillMenuSourceFilter` names; unset advertises every source.
+pub const skill_sources_env = "FX_SKILL_SOURCES";
+
+/// First name in an `FX_SKILL_SOURCES` value that is not a source filter.
+pub fn firstUnknownSkillSourceName(value: []const u8) ?[]const u8 {
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |entry| {
+        const name = std.mem.trim(u8, entry, " \t");
+        if (name.len == 0) continue;
+        if (std.meta.stringToEnum(SkillMenuSourceFilter, name) == null) return name;
+    }
+    return null;
+}
+
+/// The skills the model may see: prompt catalog, `skill` tool, and
+/// `skill_search` all project through here. The menu keeps the full list.
+/// Entries are borrowed; free only the returned slice.
+pub fn modelVisibleSkills(alloc: Allocator, skills: []const Skill) ![]const Skill {
+    var sources: ?std.EnumSet(SkillMenuSourceFilter) = null;
+    if (io_mod.getenv(skill_sources_env)) |value| {
+        var set = std.EnumSet(SkillMenuSourceFilter).initEmpty();
+        var it = std.mem.splitScalar(u8, value, ',');
+        while (it.next()) |entry| {
+            if (std.meta.stringToEnum(SkillMenuSourceFilter, std.mem.trim(u8, entry, " \t"))) |filter| set.insert(filter);
+        }
+        sources = set;
+    }
+    const visible = try alloc.alloc(Skill, skills.len);
+    errdefer alloc.free(visible);
+    var count: usize = 0;
+    for (skills) |skill| {
+        if (skill.disable_model_invocation) continue;
+        if (sources) |set| {
+            if (!set.contains(.all) and !set.contains(skillMenuFilterForSource(skill.source))) continue;
+        }
+        visible[count] = skill;
+        count += 1;
+    }
+    return alloc.realloc(visible, count);
+}
+
 pub const BoundedPromptSection = struct {
     text: []u8,
     notice: ?[]u8 = null,
@@ -878,6 +919,7 @@ fn appendSkillCandidate(
         .description = description,
         .path = path,
         .source = root.source,
+        .disable_model_invocation = candidate.metadata.disable_model_invocation,
         .read_authority = read_authority,
         .metadata_inode = file_stat.inode,
         .metadata_size = file_stat.size,
@@ -1736,6 +1778,7 @@ fn loadKnownSkill(alloc: Allocator, previous: Skill) !?Skill {
         .path = path,
         .source = previous.source,
         .read_authority = authority,
+        .disable_model_invocation = candidate.metadata.disable_model_invocation,
         .metadata_inode = stat.inode,
         .metadata_size = stat.size,
         .metadata_mtime = stat.mtime,
@@ -1792,6 +1835,7 @@ fn compactCloneSkills(
             .path = path,
             .source = skill.source,
             .read_authority = authority,
+            .disable_model_invocation = skill.disable_model_invocation,
             .metadata_inode = skill.metadata_inode,
             .metadata_size = skill.metadata_size,
             .metadata_mtime = skill.metadata_mtime,
@@ -2972,7 +3016,9 @@ pub fn buildSkillPrompt(
     defer visible.deinit(alloc);
     var identity_scratch = std.heap.ArenaAllocator.init(alloc);
     defer identity_scratch.deinit();
-    for (skills) |skill| {
+    const model_visible = try modelVisibleSkills(alloc, skills);
+    defer alloc.free(model_visible);
+    for (model_visible) |skill| {
         if (!try tool_result_limits.modelProjectionPreservesText(identity_scratch.allocator(), skill.name) or
             !try tool_result_limits.modelProjectionPreservesText(identity_scratch.allocator(), skill.path)) continue;
         try visible.append(alloc, skill);
@@ -2985,9 +3031,9 @@ pub fn buildSkillPrompt(
     section.locations.diagnostics = diagnostics;
     {
         errdefer section.deinit(alloc);
-        if (visible.items.len < skills.len) {
+        if (visible.items.len < model_visible.len) {
             const notice = try std.fmt.allocPrint(alloc, "{s}[context] {d} skill identities withheld because they cannot be safely represented to the model.\n", .{
-                section.notice orelse "", skills.len - visible.items.len,
+                section.notice orelse "", model_visible.len - visible.items.len,
             });
             if (section.notice) |previous| alloc.free(previous);
             section.notice = notice;
@@ -4355,6 +4401,33 @@ test "listSkillsSummaryStyled dims only source labels" {
     try std.testing.expect(std.mem.find(u8, result, "  - managed: installed \x1b[38;5;245m[global ~/.fx/skills]\x1b[0m\n") != null);
     try std.testing.expect(std.mem.find(u8, result, "\x1b[38;5;245mmanaged") == null);
     try std.testing.expect(std.mem.find(u8, result, "\x1b[38;5;245minstalled") == null);
+}
+
+test "modelVisibleSkills hides disable-model-invocation skills" {
+    const alloc = std.testing.allocator;
+    const skills = [_]Skill{
+        .{ .name = "deploy", .description = "deployment help", .path = "/tmp/deploy", .source = .workspace_shared },
+        .{ .name = "handoff", .description = "manual only", .path = "/tmp/handoff", .source = .global_claude, .disable_model_invocation = true },
+    };
+    const visible = try modelVisibleSkills(alloc, &skills);
+    defer alloc.free(visible);
+    try std.testing.expectEqual(@as(usize, 1), visible.len);
+    try std.testing.expectEqualStrings("deploy", visible[0].name);
+    try std.testing.expectEqualStrings("claud", firstUnknownSkillSourceName("claude, claud").?);
+    try std.testing.expect(firstUnknownSkillSourceName("claude,fx") == null);
+}
+
+test "buildSkillPrompt hides manual skills without an unsafe identity notice" {
+    const alloc = std.testing.allocator;
+    const skills = [_]Skill{
+        .{ .name = "deploy", .description = "deployment help", .path = "/tmp/deploy", .source = .workspace_shared },
+        .{ .name = "manual-only", .description = "manual help", .path = "/tmp/manual-only", .source = .global_claude, .disable_model_invocation = true },
+    };
+    var result = try buildSkillPrompt(alloc, &skills, &.{}, .{}, null);
+    defer result.deinit(alloc);
+    try std.testing.expect(std.mem.find(u8, result.text, "deploy") != null);
+    try std.testing.expect(std.mem.find(u8, result.text, "manual-only") == null);
+    try std.testing.expect(result.notice == null);
 }
 
 test "buildSkillsSystemPromptSection with no skills" {

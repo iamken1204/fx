@@ -24,6 +24,7 @@ const auth_transition = @import("../../auth/auth_transition.zig");
 const credentials = @import("../../auth/credentials.zig");
 const credential_authority = @import("../../auth/credential_authority.zig");
 const tool_dispatch = @import("../../tooling/tool_dispatch.zig");
+const tool_projection = @import("../../tooling/tool_projection.zig");
 const model_tool_schema = @import("../../tooling/model_tool_schema.zig");
 const command_result_mapping = @import("../../tooling/command_result_mapping.zig");
 const tool_result_errors = @import("../../tooling/tool_result_errors.zig");
@@ -6682,7 +6683,8 @@ fn processQueuedPromptLoop(
             const vision_policy = visionPolicy(
                 request_capabilities.image_input_support,
                 config.provider_capabilities.vision_fallback,
-                deps.tool_registry.lookup("vision") != null,
+                deps.tool_registry.lookup("vision") != null and
+                    !tool_projection.excludedByEnvironment("vision"),
                 pending_image_ids.len > 0,
             );
             const vision_route: runtime_vision_contracts.VisionRoute = if (vision_policy.route == .fallback)
