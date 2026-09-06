@@ -129,7 +129,10 @@ pub fn prepare(ctx: tool_dispatch.DispatchContext, args_json: []const u8) tool_d
 
 fn prepareInput(ctx: tool_dispatch.DispatchContext, input: *const Input) !skill_contract.CallPreparation {
     if (ctx.cancel_flag) |flag| if (flag.load(.seq_cst)) return error.Cancelled;
-    const locations = if (ctx.skill_locations) |value| value.* else skill_contract.Locations{};
+    var locations = if (ctx.skill_locations) |value| value.* else skill_contract.Locations{};
+    const visible_locations = try skill_runtime.modelVisibleSkills(ctx.allocator, locations.skills);
+    defer ctx.allocator.free(visible_locations);
+    locations.skills = visible_locations;
     const location = if (input.location) |value| try locations.resolve(ctx.allocator, value) else null;
     defer if (location) |value| ctx.allocator.free(value);
     if (location) |path| {
@@ -144,7 +147,9 @@ fn prepareInput(ctx: tool_dispatch.DispatchContext, input: *const Input) !skill_
     var discovery = try builtin_skills.loadVisibleSkillsForTool(ctx.allocator, ctx.workspace_root, ctx.skills_dir);
     defer discovery.deinit(ctx.allocator);
     skill_runtime.traceDiagnostics("skill_tool", discovery.diagnostics);
-    return skill_invocation.prepareIdentity(ctx.allocator, .{ .skills = discovery.skills, .diagnostics = discovery.diagnostics }, input.name, location, ctx.max_tool_result_bytes);
+    const visible = try skill_runtime.modelVisibleSkills(ctx.allocator, discovery.skills);
+    defer ctx.allocator.free(visible);
+    return skill_invocation.prepareIdentity(ctx.allocator, .{ .skills = visible, .diagnostics = discovery.diagnostics }, input.name, location, ctx.max_tool_result_bytes);
 }
 
 pub fn call(ctx: tool_dispatch.DispatchContext, erased: tool_dispatch.ToolInput) tool_dispatch.DispatchError!tool_dispatch.ToolResult {
@@ -240,9 +245,11 @@ fn loadByIdentity(
     var discovery = try builtin_skills.loadVisibleSkillsForTool(alloc, workspace_root, skills_dir);
     defer discovery.deinit(alloc);
     skill_runtime.traceDiagnostics("skill_tool", discovery.diagnostics);
+    const visible = try skill_runtime.modelVisibleSkills(alloc, discovery.skills);
+    defer alloc.free(visible);
     return skill_invocation.loadByIdentity(
         alloc,
-        .{ .skills = discovery.skills, .diagnostics = discovery.diagnostics },
+        .{ .skills = visible, .diagnostics = discovery.diagnostics },
         name,
         location,
         resource,
@@ -273,6 +280,15 @@ fn expectDecodeFailure(args_json: []const u8, expected: []const u8) !void {
             try std.testing.expect(false);
         },
     }
+}
+
+test "skill preparation rejects manual skills from retained locations" {
+    const alloc = std.testing.allocator;
+    const skills = [_]skill_contract.Skill{.{ .name = "manual", .description = "", .path = "/tmp/manual", .source = .global_fx, .disable_model_invocation = true }};
+    const locations: skill_contract.Locations = .{ .namespace = 1, .roots = &.{"/tmp"}, .skills = &skills };
+    const result = try prepare(.{ .allocator = alloc, .skill_locations = &locations }, "{\"location\":\"skill:0000000000000001:0/manual\"}");
+    defer skill_invocation.freeCallPreparation(alloc, result);
+    try std.testing.expect(result == .failure);
 }
 
 test "skill tool does not rebind an advertised location to a renamed skill" {
