@@ -35,6 +35,10 @@ pub const LiveToolAuthority = tool_contracts.LiveToolAuthority;
 /// Borrows checkpoint slices only for the call. A sink must synchronously copy
 /// or serialize anything it retains, including when a save fails.
 pub const RecoveryCheckpointEffect = struct {
+    /// The checkpoint borrows caller-owned scratch memory that is freed as
+    /// soon as this call returns. A sink must serialize the checkpoint or
+    /// dupe it with its own allocator before returning; it must not retain
+    /// the passed pointers.
     set: *const fn (ctx: *anyopaque, checkpoint: session_codec.RecoveryCheckpoint) anyerror!void,
     /// Terminally dead turns clear the durable checkpoint so a later resume
     /// cannot resurrect a turn the product already called stopped.

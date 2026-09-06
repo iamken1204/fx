@@ -47,7 +47,9 @@ pub fn prepareModelOutputWithTruncation(
     raw: []const u8,
     max_bytes: usize,
 ) error{OutOfMemory}!PreparedModelOutput {
-    var scratch_impl = std.heap.ArenaAllocator.init(alloc);
+    // Scratch is backed by c_allocator so deinit reclaims it even when the
+    // caller's allocator is the per-turn arena.
+    var scratch_impl = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     defer scratch_impl.deinit();
     const scratch = scratch_impl.allocator();
 

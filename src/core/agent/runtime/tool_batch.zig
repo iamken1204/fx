@@ -503,7 +503,7 @@ pub fn appendOrdinaryExecutedResult(
     memory: types.ToolResultMemory,
     execution: ToolExecutionResult,
 ) !void {
-    const activity = runtime_tool_presentation.activityKindForCall(arena, tool_registry, tool_call);
+    const activity = runtime_tool_presentation.activityKindForCall(tool_registry, tool_call);
     try appendToolResultContent(
         arena,
         within_turn_suffix,

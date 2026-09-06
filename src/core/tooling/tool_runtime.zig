@@ -446,6 +446,7 @@ pub fn executeToolCallAuthorized(
     else
         executeToolCallInner(
             execution_ctx,
+            request.call_allocator,
             request.result_allocator,
             request.call,
             request.authority,
@@ -662,7 +663,8 @@ const ToolDispatchPrelude = union(enum) {
 
 fn executeToolCallInner(
     ctx: Context,
-    arena: Allocator,
+    call_allocator: Allocator,
+    result_allocator: Allocator,
     call: ToolCall,
     authority: command_admission.ToolExecutionAuthority,
     classification_complete: bool,
@@ -670,14 +672,15 @@ fn executeToolCallInner(
 ) !ToolExecutionResult {
     return switch (try resolveToolDispatchPrelude(
         ctx,
-        arena,
+        result_allocator,
         call,
         classification_complete,
     )) {
         .completed => |result| return result,
         .registered_static => try executeRegisteredTool(
             ctx,
-            arena,
+            call_allocator,
+            result_allocator,
             call,
             authority,
             authorized_image_catalog,
@@ -687,7 +690,8 @@ fn executeToolCallInner(
             const tools = [_]tool_dispatch.Tool{dynamic_tool};
             break :blk try executeRegisteredTool(
                 ctx,
-                arena,
+                call_allocator,
+                result_allocator,
                 call,
                 authority,
                 authorized_image_catalog,
@@ -719,7 +723,10 @@ fn executeWorkspaceToolCallInner(
         return semanticFailure(try std.fmt.allocPrint(arena, "Unsupported tool: {s}", .{call.name}));
     }
 
-    var command_backend = RunCommandBackendState{ .runtime = ctx };
+    var command_backend = RunCommandBackendState{
+        .runtime = ctx,
+        .result_allocator = arena,
+    };
     var dispatch_metadata: DispatchMetadata = .{};
     var dispatch_ctx = typedDispatchContextForCall(ctx, arena, call);
     dispatch_metadata.attach(&dispatch_ctx);
@@ -818,29 +825,38 @@ fn emitMcpProgress(raw_context: *anyopaque, progress: tool_mcp_runtime.Progress)
 
 fn executeRegisteredTool(
     ctx: Context,
-    arena: Allocator,
+    call_allocator: Allocator,
+    result_allocator: Allocator,
     call: ToolCall,
     authority: command_admission.ToolExecutionAuthority,
     authorized_image_catalog: []const types.ImageAttachment,
     registry: tool_dispatch.Registry,
 ) !ToolExecutionResult {
-    var selected_dynamic_tool_sink = SelectedDynamicToolSinkState{ .allocator = arena };
-    var context_notice_sink = ContextNoticeSinkState{ .allocator = arena };
-    var command_backend = RunCommandBackendState{ .runtime = ctx };
+    var selected_dynamic_tool_sink = SelectedDynamicToolSinkState{ .allocator = result_allocator };
+    var context_notice_sink = ContextNoticeSinkState{ .allocator = result_allocator };
+    var command_backend = RunCommandBackendState{
+        .runtime = ctx,
+        .result_allocator = result_allocator,
+    };
     var vision_provider = VisionProviderState{
         .runtime = ctx,
+        .result_allocator = result_allocator,
         .authorized_image_catalog = authorized_image_catalog,
     };
     var mcp_progress_bridge = McpProgressBridge{ .ctx = ctx };
     var mcp_call_status: ?tool_mcp_runtime.CallStatus = null;
     var mcp_execution_error: ?anyerror = null;
     var dispatch_metadata: DispatchMetadata = .{};
+    // Tool decode/validate/call scratch and dispatch-owned result bodies live
+    // on the call allocator; everything that must outlive the call is either
+    // built on the result allocator (sinks, backend completions) or copied
+    // out at the bottom of this function.
     var subagent_provider = SubagentProviderState{
         .runtime = ctx,
         .call = call,
         .completion_sink = &dispatch_metadata.subagent_completion,
     };
-    var dispatch_ctx = typedDispatchContextForCall(ctx, arena, call);
+    var dispatch_ctx = typedDispatchContextForCall(ctx, call_allocator, call);
     dispatch_metadata.attach(&dispatch_ctx);
     var result_commit_token: ?result_commit.Token = null;
     dispatch_ctx.result_commit_sink = &result_commit_token;
@@ -889,19 +905,21 @@ fn executeRegisteredTool(
         &dispatch_metadata.status_detail,
     );
     if (command_backend.execution_error) |err| {
-        dispatched.deinit(arena);
+        dispatched.deinit(call_allocator);
         return err;
     }
     if (vision_provider.execution_error) |err| {
-        dispatched.deinit(arena);
+        dispatched.deinit(call_allocator);
         return err;
     }
     if (mcp_execution_error) |err| {
-        dispatched.deinit(arena);
-        if (err == error.McpAdvertisedToolChanged) return refreshChangedMcpTool(ctx, arena, call.name);
+        dispatched.deinit(call_allocator);
+        if (err == error.McpAdvertisedToolChanged) return refreshChangedMcpTool(ctx, result_allocator, call.name);
         return err;
     }
 
+    const backend_owned = command_backend.completion != null or
+        vision_provider.completion != null;
     var execution = if (command_backend.completion) |completion|
         completion
     else if (vision_provider.completion) |completion|
@@ -910,6 +928,25 @@ fn executeRegisteredTool(
         toolExecutionResultFromDispatch(dispatched, dispatch_metadata);
     execution.model_output = dispatched.body;
     if (dispatch_metadata.status_detail) |detail| execution.status_detail = detail;
+    execution.selected_dynamic_tools = selected_dynamic_tool_sink.tools.items;
+    execution.context_notices = context_notice_sink.notices.items;
+    // Dispatch-owned memory dies with the call allocator, so the surviving
+    // result copies it out. Backend completions already own their fields on
+    // the result allocator; only the dispatch echo needs the copy there.
+    if (!file_mutation_execution.allocatorsEqual(call_allocator, result_allocator)) {
+        if (!backend_owned) {
+            execution.model_output = try result_allocator.dupe(u8, execution.model_output);
+            if (execution.tool_result_memory) |memory| {
+                execution.tool_result_memory = try types.dupeToolResultMemory(result_allocator, memory);
+            }
+        }
+        if (execution.status_detail) |detail| {
+            execution.status_detail = try result_allocator.dupe(u8, detail);
+        }
+    }
+    // Assigned after the copy-out so it stays a static literal: ask retains
+    // finish-turn error codes past the turn arena (PromptRunResult.error_code
+    // is never freed), so this must not be duped onto a shorter-lived owner.
     if (mcp_call_status == .input_required or
         (execution.status == .failure and
             tool_mcp_feature_dispatch.isInputRequiredFailure(execution.model_output)))
@@ -917,8 +954,6 @@ fn executeRegisteredTool(
         execution.finish_turn = true;
         execution.status_detail = "McpInputRequired";
     }
-    execution.selected_dynamic_tools = selected_dynamic_tool_sink.tools.items;
-    execution.context_notices = context_notice_sink.notices.items;
     execution.result_commit = result_commit_token;
     if (dispatch_ctx.cancel_flag) |cancel_flag| {
         if (cancel_flag.load(.seq_cst) and
@@ -932,6 +967,7 @@ fn executeRegisteredTool(
 
 const RunCommandBackendState = struct {
     runtime: Context,
+    result_allocator: Allocator,
     completion: ?ToolExecutionResult = null,
     execution_error: ?anyerror = null,
 };
@@ -955,7 +991,7 @@ fn executeRunCommandBackend(
     };
     const execution = toolRunCommand(
         state.runtime,
-        dispatch_ctx.allocator,
+        state.result_allocator,
         request,
         authority,
     ) catch |err| {
@@ -1264,6 +1300,7 @@ pub fn prepareSkillCall(ctx: Context, arena: Allocator, call: ToolCall, location
 
 const VisionProviderState = struct {
     runtime: Context,
+    result_allocator: Allocator,
     authorized_image_catalog: []const types.ImageAttachment,
     completion: ?ToolExecutionResult = null,
     execution_error: ?anyerror = null,
@@ -1279,7 +1316,7 @@ fn executeVisionProvider(
     const request = input.as(tool_contracts.vision.VisionRequest);
     const execution = executeVisionRequest(
         state,
-        dispatch_ctx.allocator,
+        state.result_allocator,
         request.*,
         dispatch_ctx.execution_authority orelse {
             state.execution_error = error.InvalidVisionExecutionAuthority;
@@ -3251,6 +3288,45 @@ test "ask_user_question execution uses supplied registry entry and interactive h
         .advertised_dynamic_tool_names = &.{},
         .max_tool_result_bytes = rt.max_tool_result_bytes,
     }));
+}
+
+test "ordinary tool results survive the call allocator" {
+    const alloc = std.testing.allocator;
+    var result_arena_state = std.heap.ArenaAllocator.init(alloc);
+    defer result_arena_state.deinit();
+
+    var registered_ask_question = test_builtin_tools.ask_user_question;
+    registered_ask_question.call = registryOwnedAskQuestionCall;
+    const tools = [_]tool_dispatch.Tool{registered_ask_question};
+    const registry = tool_dispatch.Registry{ .tools = tools[0..] };
+    var rt = TestRuntime{ .tool_registry = registry };
+    defer rt.deinit(alloc);
+
+    var call_arena_state = std.heap.ArenaAllocator.init(alloc);
+    const result = blk: {
+        defer call_arena_state.deinit();
+        break :blk try executeToolCallAuthorized(rt.context(), .{
+            .call_allocator = call_arena_state.allocator(),
+            .result_allocator = result_arena_state.allocator(),
+            .call = .{
+                .id = "distinct-owners",
+                .name = "ask_user_question",
+                .arguments_json = "not-json",
+            },
+            .authority = .ordinary,
+            .session_grants = &.{},
+            .advertised_dynamic_tool_names = &.{},
+            .max_tool_result_bytes = rt.max_tool_result_bytes,
+        });
+    };
+
+    // The call allocator is gone. Everything the caller may still read has to
+    // live on the result allocator; today that is model_output, status_detail,
+    // and tool_result_memory (see the copy-out in executeRegisteredTool).
+    try std.testing.expectEqual(tool_contracts.ToolExecutionStatus.success, result.status);
+    try std.testing.expectEqualStrings("registry-owned ask_user_question", result.model_output);
+    try std.testing.expect(result.status_detail == null);
+    try std.testing.expect(result.tool_result_memory == null);
 }
 
 test "web_fetch execution uses supplied registry entry" {
