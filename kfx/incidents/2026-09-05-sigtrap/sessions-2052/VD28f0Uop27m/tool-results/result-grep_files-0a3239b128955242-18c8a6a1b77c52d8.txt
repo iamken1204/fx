@@ -1,0 +1,15 @@
+[grep] 2 matches for compaction
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:3889-           id: FAKE_GATEWAY_MODEL,
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:3890-           type: "language",
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:3891-           tags: ["tool-use"],
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:3892:           // Keep the stdin transport cases below the separate compaction threshold.
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:3893-           context_window: 2_000_000,
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:3894-           max_tokens: 16_384,
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:3895-         }] },
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:4261-           kind: "compacted_summary",
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:4262-           summary: legacySummary,
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:4263-           removed_turn_count: 12,
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:4264:           compaction_count: 1,
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:4265-         }, {
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:4266-           kind: "assistant",
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts:4267-           user: { text: "LEGACY_ORIGINAL_REQUEST", images: [] },

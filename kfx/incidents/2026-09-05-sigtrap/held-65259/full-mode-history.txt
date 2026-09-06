@@ -1,0 +1,6 @@
+malloc_history Report Version:  2.0
+ALLOC 0x100d01c70-0x100d01c94 [size=37]:  0x18830fe00 (dyld) start | 0x100610478 (kfx-stack-history-probe) main  kfx-stack-history-probe.c:8 | 0x1884fa1ec (libsystem_malloc.dylib) _malloc_zone_malloc_instrumented_or_legacy 
+----
+FREE  0x100d01c70-0x100d01c94 [size=37]: 0x18830fe00 (dyld) start | 0x1006104e4 (kfx-stack-history-probe) main  kfx-stack-history-probe.c:14 | 0x1884fac0c (libsystem_malloc.dylib) find_zone_and_free 
+
+

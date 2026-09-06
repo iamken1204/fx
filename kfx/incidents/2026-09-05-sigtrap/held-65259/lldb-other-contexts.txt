@@ -1,0 +1,48 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) thread select 2
+(lldb) frame select 3
+* thread #2
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+frame #3: 0x00000001886d7744 libsystem_platform.dylib`_sigtramp + 56
+libsystem_platform.dylib`_sigtramp:
+->  0x1886d7744 <+56>: str    wzr, [x21, #0x50]
+    0x1886d7748 <+60>: mov    x0, x20
+    0x1886d774c <+64>: mov    w1, #0x1e                 ; =30 
+    0x1886d7750 <+68>: mov    x2, x19
+(lldb) register read x20
+     x20 = 0x00000001715878b8
+(lldb) thread select 12
+(lldb) frame select 3
+* thread #12
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+frame #3: 0x00000001886d7744 libsystem_platform.dylib`_sigtramp + 56
+libsystem_platform.dylib`_sigtramp:
+->  0x1886d7744 <+56>: str    wzr, [x21, #0x50]
+    0x1886d7748 <+60>: mov    x0, x20
+    0x1886d774c <+64>: mov    w1, #0x1e                 ; =30 
+    0x1886d7750 <+68>: mov    x2, x19
+(lldb) register read x20
+     x20 = 0x000000016e495798
+(lldb) detach
+Process 65259 detached

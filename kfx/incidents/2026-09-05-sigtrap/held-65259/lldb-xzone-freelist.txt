@@ -1,0 +1,170 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) memory read --binary --outfile kfx/incidents/2026-09-05-sigtrap/held-65259/xzone-slab-76b02c000.bin 0x76b02c000 0x76b030000
+16384 bytes written to 'kfx/incidents/2026-09-05-sigtrap/held-65259/xzone-slab-76b02c000.bin'
+(lldb) disassemble -s 0x1884f1750 -e 0x1884f19b0
+libsystem_malloc.dylib`_xzm_xzone_malloc_freelist_outlined:
+    0x1884f1750 <+280>: mov    x8, x28
+    0x1884f1754 <+284>: cas    x8, x9, [x23]
+    0x1884f1758 <+288>: cmp    x8, x28
+    0x1884f175c <+292>: b.ne   0x1884f1690               ; <+88>
+    0x1884f1760 <+296>: add    x4, sp, #0x8
+    0x1884f1764 <+300>: add    x5, sp, #0x7
+    0x1884f1768 <+304>: mov    x0, x21
+    0x1884f176c <+308>: mov    x1, x19
+    0x1884f1770 <+312>: mov    x2, x24
+    0x1884f1774 <+316>: mov    x3, #0x0                  ; =0 
+    0x1884f1778 <+320>: bl     0x1884f1f14               ; _xzm_xzone_find_and_malloc_from_freelist_chunk
+    0x1884f177c <+324>: mov    x22, x0
+    0x1884f1780 <+328>: ldr    x8, [sp, #0x8]
+    0x1884f1784 <+332>: ubfiz  x8, x8, #2, #47
+    0x1884f1788 <+336>: mov    x9, #0x2000000000000      ; =562949953421312 
+    0x1884f178c <+340>: add    x9, x27, x9
+    0x1884f1790 <+344>: add    x8, x9, x8
+    0x1884f1794 <+348>: swpl   x8, x8, [x23]
+    0x1884f1798 <+352>: tbz    w8, #0x1, 0x1884f17bc     ; <+388>
+    0x1884f179c <+356>: mov    w0, #0x102                ; =258 
+    0x1884f17a0 <+360>: movk   w0, #0x100, lsl #16
+    0x1884f17a4 <+364>: mov    x1, x23
+    0x1884f17a8 <+368>: mov    x2, #0x0                  ; =0 
+    0x1884f17ac <+372>: bl     0x18850278c               ; symbol stub for: __ulock_wake
+    0x1884f17b0 <+376>: cmn    w0, #0x2
+    0x1884f17b4 <+380>: b.eq   0x1884f17bc               ; <+388>
+    0x1884f17b8 <+384>: cbnz   w0, 0x1884f1a4c           ; <+1044>
+    0x1884f17bc <+388>: cbnz   x22, 0x1884f17d8          ; <+416>
+    0x1884f17c0 <+392>: mrs    x8, TPIDRRO_EL0
+    0x1884f17c4 <+396>: ldr    x8, [x8, #0x8]
+    0x1884f17c8 <+400>: mov    w9, #0xc                  ; =12 
+    0x1884f17cc <+404>: str    w9, [x8]
+    0x1884f17d0 <+408>: b      0x1884f1948               ; <+784>
+    0x1884f17d4 <+412>: mov    x22, x0
+    0x1884f17d8 <+416>: ldrb   wzr, [x19, #0x56]
+    0x1884f17dc <+420>: ldrb   w8, [sp, #0x7]
+    0x1884f17e0 <+424>: ldrb   w9, [x21, #0x101]
+    0x1884f17e4 <+428>: cmp    w9, #0x1
+    0x1884f17e8 <+432>: b.ne   0x1884f1850               ; <+536>
+    0x1884f17ec <+436>: ldr    x9, [x19, #0x30]
+    0x1884f17f0 <+440>: cmp    x9, #0x100
+    0x1884f17f4 <+444>: b.hi   0x1884f1850               ; <+536>
+    0x1884f17f8 <+448>: cbz    w8, 0x1884f18c4           ; <+652>
+    0x1884f17fc <+452>: mrs    x8, TPIDRRO_EL0
+    0x1884f1800 <+456>: ldr    x8, [x8, #0x390]
+    0x1884f1804 <+460>: cbz    x8, 0x1884f18c4           ; <+652>
+    0x1884f1808 <+464>: ldrb   w9, [x19, #0x50]
+    0x1884f180c <+468>: mov    w10, #0x18                ; =24 
+    0x1884f1810 <+472>: umaddl x8, w9, w10, x8
+    0x1884f1814 <+476>: ldrsh  w9, [x8, #0x38]
+    0x1884f1818 <+480>: cmn    w9, #0x1
+    0x1884f181c <+484>: b.ne   0x1884f18c4               ; <+652>
+    0x1884f1820 <+488>: ldurh  w9, [x8, #0x3a]
+    0x1884f1824 <+492>: add    w9, w9, #0x1
+    0x1884f1828 <+496>: sturh  w9, [x8, #0x3a]
+    0x1884f182c <+500>: ldr    w10, [x21, #0x108]
+    0x1884f1830 <+504>: cmp    w10, w9, uxth
+    0x1884f1834 <+508>: b.ne   0x1884f18c4               ; <+652>
+    0x1884f1838 <+512>: mov    w9, #0xfffe               ; =65534 
+    0x1884f183c <+516>: sturh  w9, [x8, #0x38]
+    0x1884f1840 <+520>: ldurh  w9, [x8, #0x30]
+    0x1884f1844 <+524>: and    w9, w9, #0xfff
+    0x1884f1848 <+528>: sturh  w9, [x8, #0x3e]
+    0x1884f184c <+532>: b      0x1884f18c4               ; <+652>
+    0x1884f1850 <+536>: ldr    x9, [x23, #0x10]
+    0x1884f1854 <+540>: ldrb   w10, [x21, #0x100]
+    0x1884f1858 <+544>: ubfx   w10, w10, #4, #2
+    0x1884f185c <+548>: lsr    x11, x9, #56
+    0x1884f1860 <+552>: cmp    w11, w10
+    0x1884f1864 <+556>: b.eq   0x1884f18c4               ; <+652>
+    0x1884f1868 <+560>: lsr    x9, x9, #32
+    0x1884f186c <+564>: tst    w9, #0xffffff
+    0x1884f1870 <+568>: b.ne   0x1884f1878               ; <+576>
+    0x1884f1874 <+572>: cbz    w8, 0x1884f18c4           ; <+652>
+    0x1884f1878 <+576>: cmp    w8, #0x0
+    0x1884f187c <+580>: mov    x8, #0x100000001          ; =4294967297 
+    0x1884f1880 <+584>: csinc  x8, x8, xzr, ne
+    0x1884f1884 <+588>: add    x9, x23, #0x10
+    0x1884f1888 <+592>: ldadd  x8, x9, [x9]
+    0x1884f188c <+596>: add    x8, x9, x8
+    0x1884f1890 <+600>: lsr    x9, x8, #56
+    0x1884f1894 <+604>: cmp    w9, w10
+    0x1884f1898 <+608>: b.eq   0x1884f18c4               ; <+652>
+    0x1884f189c <+612>: lsr    x10, x8, #32
+    0x1884f18a0 <+616>: add    x11, x21, w9, uxtw #2
+    0x1884f18a4 <+620>: and    w10, w10, #0xffffff
+    0x1884f18a8 <+624>: ldr    w11, [x11, #0x12c]
+    0x1884f18ac <+628>: cmp    w10, w11
+    0x1884f18b0 <+632>: b.hs   0x1884f1994               ; <+860>
+    0x1884f18b4 <+636>: ldr    w10, [x21, #0x138]
+    0x1884f18b8 <+640>: cmp    w10, w8
+    0x1884f18bc <+644>: ccmp   w10, w8, #0x0, ls
+    0x1884f18c0 <+648>: b.hs   0x1884f1a14               ; <+988>
+    0x1884f18c4 <+652>: tbz    w20, #0x1e, 0x1884f192c   ; <+756>
+    0x1884f18c8 <+656>: ldr    w8, [sp]
+    0x1884f18cc <+660>: tbz    w8, #0x1, 0x1884f192c     ; <+756>
+    0x1884f18d0 <+664>: mov    x8, #-0x40                ; =-64 
+    0x1884f18d4 <+668>: movk   x8, #0xf1ff, lsl #48
+    0x1884f18d8 <+672>: ldr    x10, [x19, #0x30]
+    0x1884f18dc <+676>: and    x22, x22, #0xf0ffffffffffffff
+    0x1884f18e0 <+680>: add    x9, x22, x10
+    0x1884f18e4 <+684>: stg    x22, [x22]
+    0x1884f18e8 <+688>: stg    x9, [x9, #-0x10]
+    0x1884f18ec <+692>: cmp    x10, #0x20
+    0x1884f18f0 <+696>: b.ls   0x1884f190c               ; <+724>
+    0x1884f18f4 <+700>: add    x10, x22, #0x1f
+    0x1884f18f8 <+704>: add    x11, x8, #0x20
+    0x1884f18fc <+708>: and    x10, x10, x11
+    0x1884f1900 <+712>: and    x11, x9, #0xffffffffffffffe0
+    0x1884f1904 <+716>: st2g   x10, [x10]
+    0x1884f1908 <+720>: st2g   x11, [x11, #-0x20]
+    0x1884f190c <+724>: add    x10, x22, #0x3f
+    0x1884f1910 <+728>: and    x8, x10, x8
+    0x1884f1914 <+732>: and    x9, x9, #0xffffffffffffffc0
+    0x1884f1918 <+736>: cmp    x8, x9
+    0x1884f191c <+740>: b.hs   0x1884f192c               ; <+756>
+    0x1884f1920 <+744>: dc     gva, x8
+    0x1884f1924 <+748>: add    x8, x8, #0x40
+    0x1884f1928 <+752>: b      0x1884f1918               ; <+736>
+    0x1884f192c <+756>: stp    xzr, xzr, [x22]
+    0x1884f1930 <+760>: tbz    w20, #0x0, 0x1884f1948    ; <+784>
+    0x1884f1934 <+764>: cmp    x26, #0x401
+    0x1884f1938 <+768>: b.lo   0x1884f1948               ; <+784>
+    0x1884f193c <+772>: ldr    x1, [x19, #0x30]
+    0x1884f1940 <+776>: mov    x0, x22
+    0x1884f1944 <+780>: bl     0x1885027ec               ; symbol stub for: _platform_bzero
+    0x1884f1948 <+784>: mov    x0, x22
+    0x1884f194c <+788>: ldp    x29, x30, [sp, #0x60]
+    0x1884f1950 <+792>: ldp    x20, x19, [sp, #0x50]
+    0x1884f1954 <+796>: ldp    x22, x21, [sp, #0x40]
+    0x1884f1958 <+800>: ldp    x24, x23, [sp, #0x30]
+    0x1884f195c <+804>: ldp    x26, x25, [sp, #0x20]
+    0x1884f1960 <+808>: ldp    x28, x27, [sp, #0x10]
+    0x1884f1964 <+812>: add    sp, sp, #0x70
+    0x1884f1968 <+816>: retab  
+    0x1884f196c <+820>: mov    x8, x4
+    0x1884f1970 <+824>: stp    x20, x21, [sp, #-0x10]!
+    0x1884f1974 <+828>: adrp   x20, 26
+    0x1884f1978 <+832>: add    x20, x20, #0x93d          ; "BUG IN CLIENT OF LIBMALLOC: memory corruption of free block"
+    0x1884f197c <+836>: adrp   x21, 432286
+    0x1884f1980 <+840>: add    x21, x21, #0x578          ; gCRAnnotations
+    0x1884f1984 <+844>: str    x20, [x21, #0x8]
+    0x1884f1988 <+848>: str    x8, [x21, #0x38]
+    0x1884f198c <+852>: ldp    x20, x21, [sp], #0x10
+    0x1884f1990 <+856>: brk    #0x1
+    0x1884f1994 <+860>: b.hi   0x1884f18c4               ; <+652>
+    0x1884f1998 <+864>: tst    x8, #0xff00000000000000
+    0x1884f199c <+868>: adrp   x8, 443232
+    0x1884f19a0 <+872>: add    x8, x8, #0x92c            ; ncpuclusters
+    0x1884f19a4 <+876>: ldr    w8, [x8]
+    0x1884f19a8 <+880>: ccmp   w8, #0x2, #0x0, eq
+    0x1884f19ac <+884>: cset   w9, lo
+(lldb) detach
+Process 65259 detached

@@ -1,0 +1,32 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) command script import /tmp/kfx_lldb_find_ptrs.py
+(lldb) kfx-find-ptrs
+target=0x76b02c1c0 pointer_at=0x16d445730 region=0x16c480000-0x16d480000
+target=0x76b02c1c0 pointer_at=0x16d445750 region=0x16c480000-0x16d480000
+target=0x76b02c1c0 pointer_at=0x16d445ba0 region=0x16c480000-0x16d480000
+target=0x76b02c1c0 pointer_at=0x16d445bd0 region=0x16c480000-0x16d480000
+target=0x76b02c1c0 pointer_at=0x16d446318 region=0x16c480000-0x16d480000
+target=0x76b02c1c0 pointer_at=0x16d448ef0 region=0x16c480000-0x16d480000
+target=0x76b02c1c0 pointer_at=0x16d44a910 region=0x16c480000-0x16d480000
+target=0x76b02ed20 pointer_at=0x16e495800 region=0x16d510000-0x16e518000
+target=0x76b02ed20 pointer_at=0x16e495820 region=0x16d510000-0x16e518000
+target=0x76b02ed20 pointer_at=0x16e50c5c8 region=0x16d510000-0x16e518000
+target=0x76b02f1f0 pointer_at=0x171587920 region=0x1705c0000-0x1715c8000
+target=0x76b02f1f0 pointer_at=0x171587940 region=0x1705c0000-0x1715c8000
+target=0x76b02ed20 pointer_at=0x1f1d8f5b0 region=0x1f1d84000-0x1f2000000
+target=0x76b02c1c0 pointer_at=0x76ad2fb90 region=0x76ac00000-0x76b000000
+target=0x76b02ed20 pointer_at=0x76b195710 region=0x76b000000-0x76b400000
+target=0x76b02ed20 pointer_at=0x76b2755f0 region=0x76b000000-0x76b400000
+(lldb) detach
+Process 65259 detached

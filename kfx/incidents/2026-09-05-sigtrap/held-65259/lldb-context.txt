@@ -1,0 +1,89 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) disassemble -n _sigtramp
+libsystem_platform.dylib`_sigtramp:
+    0x1886d770c <+0>:  pacibsp 
+    0x1886d7710 <+4>:  stp    x22, x21, [sp, #-0x30]!
+    0x1886d7714 <+8>:  stp    x20, x19, [sp, #0x10]
+    0x1886d7718 <+12>: stp    x29, x30, [sp, #0x20]
+    0x1886d771c <+16>: add    x29, sp, #0x20
+    0x1886d7720 <+20>: mov    x19, x5
+    0x1886d7724 <+24>: mov    x20, x4
+    0x1886d7728 <+28>: mov    x1, x3
+    0x1886d772c <+32>: mov    x8, x0
+    0x1886d7730 <+36>: adrp   x21, 442773
+    0x1886d7734 <+40>: str    w2, [x21, #0x50]
+    0x1886d7738 <+44>: mov    x0, x2
+    0x1886d773c <+48>: mov    x2, x4
+    0x1886d7740 <+52>: blraaz x8
+    0x1886d7744 <+56>: str    wzr, [x21, #0x50]
+    0x1886d7748 <+60>: mov    x0, x20
+    0x1886d774c <+64>: mov    w1, #0x1e                 ; =30 
+    0x1886d7750 <+68>: mov    x2, x19
+    0x1886d7754 <+72>: bl     0x1886db9a8               ; symbol stub for: __sigreturn
+    0x1886d7758 <+76>: brk    #0x1
+(lldb) thread select 1
+(lldb) frame select 3
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+frame #3: 0x00000001886d7744 libsystem_platform.dylib`_sigtramp + 56
+libsystem_platform.dylib`_sigtramp:
+->  0x1886d7744 <+56>: str    wzr, [x21, #0x50]
+    0x1886d7748 <+60>: mov    x0, x20
+    0x1886d774c <+64>: mov    w1, #0x1e                 ; =30 
+    0x1886d7750 <+68>: mov    x2, x19
+(lldb) register read x19 x20 x21 fp sp
+     x19 = 0x81841bf4caecd7ec
+     x20 = 0x000000016d4456c8
+     x21 = 0x00000001f486c000  libsystem_pthread.dylib`__libdispatch_workerfunction + 16352
+      fp = 0x000000016d445650
+      sp = 0x000000016d445630
+(lldb) image dump sections libsystem_malloc.dylib
+Sections for '/usr/lib/system/libsystem_malloc.dylib' (arm64e):
+  SectID             Type                   Load Address                             Perm File Off.  File Size  Flags      Section Name
+  ------------------ ---------------------- ---------------------------------------  ---- ---------- ---------- ---------- ----------------------------
+  0x0000000000000100 container              [0x00000001884c0000-0x00000001885101d8)  r-x  0x00000000 0x000501d8 0x00000000 libsystem_malloc.dylib.__TEXT
+  0x0000000000000001 code                   [0x00000001884c0ce8-0x000000018850271c)  r-x  0x00000ce8 0x00041a34 0x80000400 libsystem_malloc.dylib.__TEXT.__text
+  0x0000000000000002 code                   [0x000000018850271c-0x0000000188502ebc)  r-x  0x0004271c 0x000007a0 0x80000408 libsystem_malloc.dylib.__TEXT.__auth_stubs
+  0x0000000000000003 regular                [0x0000000188502ec0-0x000000018850347c)  r-x  0x00042ec0 0x000005bc 0x00000000 libsystem_malloc.dylib.__TEXT.__const
+  0x0000000000000004 data-cstr              [0x000000018850347c-0x000000018850ed86)  r-x  0x0004347c 0x0000b90a 0x00000002 libsystem_malloc.dylib.__TEXT.__cstring
+  0x0000000000000005 debug                  [0x000000018850ed86-0x000000018850f81c)  r-x  0x0004ed86 0x00000a96 0x0000000f libsystem_malloc.dylib.__TEXT.__dof_magmalloc
+  0x0000000000000006 compact-unwind         [0x000000018850f81c-0x000000018851018c)  r-x  0x0004f81c 0x00000970 0x00000000 libsystem_malloc.dylib.__TEXT.__unwind_info
+  0x0000000000000007 eh-frame               [0x0000000188510190-0x00000001885101d8)  r-x  0x00050190 0x00000048 0x6800000b libsystem_malloc.dylib.__TEXT.__eh_frame
+  0x0000000000000200 container              [0x00000001edaee920-0x00000001edaef3f8)  rw-  0x6562e920 0x00000ad8 0x00000000 libsystem_malloc.dylib.__DATA_CONST
+  0x0000000000000008 regular                [0x00000001edaee920-0x00000001edaee9d0)  rw-  0x6562e920 0x000000b0 0x00000000 libsystem_malloc.dylib.__DATA_CONST.__got
+  0x0000000000000009 regular                [0x00000001edaee9d0-0x00000001edaef3f8)  rw-  0x6562e9d0 0x00000a28 0x00000000 libsystem_malloc.dylib.__DATA_CONST.__const
+  0x0000000000000300 container              [0x00000001f5ebbca8-0x00000001f5ebc788)  rw-  0x6d9fbca8 0x00000ae0 0x00000000 libsystem_malloc.dylib.__AUTH_CONST
+  0x000000000000000a regular                [0x00000001f5ebbca8-0x00000001f5ebc078)  rw-  0x6d9fbca8 0x000003d0 0x00000000 libsystem_malloc.dylib.__AUTH_CONST.__auth_got
+  0x000000000000000b regular                [0x00000001f5ebc078-0x00000001f5ebc0b8)  rw-  0x6d9fc078 0x00000040 0x00000000 libsystem_malloc.dylib.__AUTH_CONST.__auth_ptr
+  0x000000000000000c regular                [0x00000001f5ebc0b8-0x00000001f5ebc788)  rw-  0x6d9fc0b8 0x000006d0 0x00000000 libsystem_malloc.dylib.__AUTH_CONST.__const
+  0x0000000000000400 container              [0x00000001f550c000-0x00000001f5514000)  rw-  0x6d04c000 0x00008000 0x00000000 libsystem_malloc.dylib.__AUTH
+  0x000000000000000d data                   [0x00000001f550c000-0x00000001f550c128)  rw-  0x6d04c000 0x00000128 0x00000000 libsystem_malloc.dylib.__AUTH.__data
+  0x000000000000000e regular                [0x00000001f5510000-0x00000001f5514000)  rw-  0x6d050000 0x00004000 0x00000000 libsystem_malloc.dylib.__AUTH.__v_zone
+  0x0000000000000500 container              [0x00000001f1d8f498-0x00000001f1d9187c)  rw-  0x698cf498 0x000023e4 0x00000000 libsystem_malloc.dylib.__DATA
+  0x000000000000000f data                   [0x00000001f1d8f498-0x00000001f1d8f578)  rw-  0x698cf498 0x000000e0 0x00000000 libsystem_malloc.dylib.__DATA.__data
+  0x0000000000000010 regular                [0x00000001f1d8f578-0x00000001f1d8f6c0)  rw-  0x698cf578 0x00000148 0x00000000 libsystem_malloc.dylib.__DATA.__crash_info
+  0x0000000000000011 zero-fill              [0x00000001f1d8f6c0-0x00000001f1d917fd)  rw-  0x698cf6c0 0x0000213d 0x00000001 libsystem_malloc.dylib.__DATA.__bss
+  0x0000000000000012 zero-fill              [0x00000001f1d91800-0x00000001f1d9187c)  rw-  0x698d1800 0x0000007c 0x00000001 libsystem_malloc.dylib.__DATA.__common
+  0x0000000000000600 container              [0x00000001f48516b0-0x00000001f485198c)  rw-  0x6c3916b0 0x000002dc 0x00000000 libsystem_malloc.dylib.__DATA_DIRTY
+  0x0000000000000013 data                   [0x00000001f48516b0-0x00000001f48516d8)  rw-  0x6c3916b0 0x00000028 0x00000000 libsystem_malloc.dylib.__DATA_DIRTY.__data
+  0x0000000000000014 zero-fill              [0x00000001f48516d8-0x00000001f4851779)  rw-  0x6c3916d8 0x000000a1 0x00000001 libsystem_malloc.dylib.__DATA_DIRTY.__bss
+  0x0000000000000015 zero-fill              [0x00000001f4851780-0x00000001f485198c)  rw-  0x6c391780 0x0000020c 0x00000001 libsystem_malloc.dylib.__DATA_DIRTY.__common
+  0x0000000000000700 container              [0x0000000207238000-0x000000022af2c000)  r--  0x7ed78000 0x23cf4000 0x00000000 libsystem_malloc.dylib.__LINKEDIT
+(lldb) detach
+Process 65259 detached

@@ -1,0 +1,144 @@
+<path>/Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts</path>
+<content>
+3840	          {
+3841	            cwd: realpathSync(workspace),
+3842	            env: {
+3843	              HOME: realpathSync(home),
+3844	              AI_GATEWAY_API_KEY: "fake-explicit-skill-key",
+3845	              VERCEL_OIDC_TOKEN: undefined,
+3846	              FX_GATEWAY_BASE_URL: gateway.baseUrl,
+3847	              FX_GATEWAY_CHAT_URL: gateway.chatUrl,
+3848	              FX_MODEL: FAKE_GATEWAY_MODEL,
+3849	              FX_AUTO_UPGRADE: "0",
+3850	            },
+3851	            timeoutMs: TIMEOUT,
+3852	          },
+3853	        );
+3854	
+3855	        expect(result.code).toBe(0);
+3856	        expect(result.stderr).toBe("");
+3857	        expect(JSON.parse(result.stdout).output.trim()).toBe(
+3858	          "explicit skill ask complete",
+3859	        );
+3860	        expect(gateway.requests).toHaveLength(1);
+3861	        expect(gateway.modelRequests).toHaveLength(1);
+3862	        expect(gateway.requests[0]!.body).toContain(
+3863	          "Explicitly invoked skill content for this query:",
+3864	        );
+3865	        expect(gateway.requests[0]!.body).toContain(
+3866	          '<skill_content name=\\"cli-explicit\\"',
+3867	        );
+3868	        expect(gateway.requests[0]!.body).toContain('resource=\\"SKILL.md\\"');
+3869	        expect(gateway.requests[0]!.body).toContain('complete=\\"true\\"');
+3870	        expect(gateway.requests[0]!.body).toContain(skillBody);
+3871	      } finally {
+3872	        gateway.stop();
+3873	        rmSync(root, { recursive: true, force: true });
+3874	      }
+3875	    },
+3876	    TIMEOUT,
+3877	  );
+3878	
+3879	  test(
+3880	    "fx ask stdin prompts above the old 1 MiB limit reach Gateway byte-for-byte",
+3881	    async () => {
+3882	      const root = mkdtempSync(join(tmpdir(), "fx-e2e-ask-large-stdin-"));
+3883	      const home = join(root, "home");
+3884	      const workspace = join(root, "workspace");
+3885	      const sizes = [1024 * 1024 - 1, 1024 * 1024, 1024 * 1024 + 1, 3 * 1024 * 1024];
+3886	      const gateway = startFakeGateway(
+3887	        sizes.map((_, index) => fakeGatewayFinalText(`large stdin ${index}`)),
+3888	        { models: [{
+3889	          id: FAKE_GATEWAY_MODEL,
+3890	          type: "language",
+3891	          tags: ["tool-use"],
+3892	          // Keep the stdin transport cases below the separate compaction threshold.
+3893	          context_window: 2_000_000,
+3894	          max_tokens: 16_384,
+3895	        }] },
+3896	      );
+3897	      try {
+3898	        mkdirSync(join(home, ".fx"), { recursive: true, mode: 0o700 });
+3899	        mkdirSync(workspace);
+3900	        writeFileSync(join(home, ".fx", "settings.json"), "{}\n");
+3901	
+3902	        for (const [index, size] of sizes.entries()) {
+3903	          const prompt = `B${"x".repeat(size - 2)}E`;
+3904	          const result = await runFx(
+3905	            ["ask", "--json", "--auto", "--no-save"],
+3906	            {
+3907	              cwd: realpathSync(workspace),
+3908	              env: {
+3909	                HOME: home,
+3910	                AI_GATEWAY_API_KEY: "fake-large-stdin-key",
+3911	                VERCEL_OIDC_TOKEN: undefined,
+3912	                FX_GATEWAY_BASE_URL: gateway.baseUrl,
+3913	                FX_GATEWAY_CHAT_URL: gateway.chatUrl,
+3914	                FX_MODEL: FAKE_GATEWAY_MODEL,
+3915	                FX_AUTO_UPGRADE: "0",
+3916	              },
+3917	              stdin: prompt,
+3918	              timeoutMs: 60_000,
+3919	            },
+3920	          );
+3921	
+3922	          expect(result.code, JSON.stringify({ size, stdout: result.stdout, stderr: result.stderr })).toBe(0);
+3923	          expect(JSON.parse(result.stdout).output.trim()).toBe(`large stdin ${index}`);
+3924	          const request = JSON.parse(gateway.requests[index]!.body) as {
+3925	            prompt: Array<{ role: string; content: Array<{ type: string; text?: string }> }>;
+3926	          };
+3927	          const user = request.prompt.findLast((message) => message.role === "user");
+3928	          expect(user?.content.find((part) => part.type === "text")?.text).toBe(prompt);
+3929	        }
+3930	
+3931	        expect(gateway.requests).toHaveLength(sizes.length);
+3932	        expect(gateway.modelRequests).toHaveLength(sizes.length);
+3933	      } finally {
+3934	        gateway.stop();
+3935	        rmSync(root, { recursive: true, force: true });
+3936	      }
+3937	    },
+3938	    120_000,
+3939	  );
+3940	
+3941	  test(
+3942	    "fx ask stdin resource overflow has distinct text and JSON errors",
+3943	    async () => {
+3944	      const oversized = Buffer.alloc(8 * 1024 * 1024 + 1, 0x78);
+3945	
+3946	      const textResult = await runFx(["ask", "--auto", "--no-save"], {
+3947	        env: { ...NO_GATEWAY_AUTH, FX_DISABLE_KEYCHAIN: "1" },
+3948	        stdin: oversized,
+3949	        timeoutMs: 60_000,
+3950	      });
+3951	      expect(textResult.code).toBe(1);
+3952	      expect(textResult.stdout).toBe("");
+3953	      expect(textResult.stderr).toBe(
+3954	        "fx ask: prompt exceeds the local input safety limit\n",
+3955	      );
+3956	
+3957	      const jsonResult = await runFx(["ask", "--json", "--auto", "--no-save"], {
+3958	        env: { ...NO_GATEWAY_AUTH, FX_DISABLE_KEYCHAIN: "1" },
+3959	        stdin: oversized,
+3960	        timeoutMs: 60_000,
+3961	      });
+3962	      expect(jsonResult.code).toBe(1);
+3963	      expect(jsonResult.stderr).toBe("");
+3964	      expect(jsonResult.stdout).toBe(
+3965	        '{"output":"","final_output":"","exit_code":1,"model":"","session_id":"","steps":0,"tool_calls":[],"error":"PromptResourceLimitExceeded"}\n',
+3966	      );
+3967	    },
+3968	    120_000,
+3969	  );
+3970	
+3971	  test(
+3972	    "fx ask sends catalog-backed portable reasoning",
+3973	    async () => {
+3974	      const root = mkdtempSync(join(tmpdir(), "fx-e2e-ask-portable-reasoning-"));
+3975	      const home = join(root, "home");
+3976	      const workspace = join(root, "workspace");
+3977	      const model = "provider/new-reasoning-model";
+3978	      const gateway = startFakeGateway(
+3979	        [fakeGatewayFinalText("portable ask complete")],
+... [showing 140 of 5302 lines; use start_line/line_count to read more.]
+</content>

@@ -1,0 +1,8 @@
+[grep] 7 matches for StorageTarget
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/session/result_store.zig:22: pub const StorageTarget = union(enum) {
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/session/result_store.zig:31:     ) ?StorageTarget {
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/session/result_store.zig:39:         self: StorageTarget,
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/session/result_store.zig:163:     target: StorageTarget,
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/session/result_store.zig:203:     target: StorageTarget,
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/session/result_store.zig:258:     return (StorageTarget{ .legacy_dir = result_dir }).store(alloc, tool_call_id, tool_name, text);
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/session/result_store.zig:289:     return (StorageTarget{ .managed = capability }).store(alloc, tool_call_id, tool_name, text);

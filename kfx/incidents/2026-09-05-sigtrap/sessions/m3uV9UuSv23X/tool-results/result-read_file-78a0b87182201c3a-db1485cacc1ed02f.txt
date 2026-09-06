@@ -1,0 +1,79 @@
+<path>src/core/agent/runtime/orchestrator.zig</path>
+<content>
+5150	    overlay_arena_state: *std.heap.ArenaAllocator,
+5151	    local_grants_ptr: *std.ArrayList(PermissionGrant),
+5152	    completed_tool_names_ptr: *std.ArrayList([]u8),
+5153	    summary_accumulator_ptr: *runtime_telemetry.TurnSummaryAccumulator,
+5154	    finish_trace_ptr: *PromptFinishTrace,
+5155	    interrupted_persisted_ptr: *bool,
+5156	    current_user_message: ChatMessage,
+5157	    stop_state: *CommonStopState,
+5158	    agent: *runtime_agent.Agent,
+5159	) !void {
+5160	    var stable_prefix = stable_prefix_ptr.*;
+5161	    defer stable_prefix_ptr.* = stable_prefix;
+5162	    const history_messages = history_messages_ptr.*;
+5163	    var eviction = runtime_result_eviction.State.init(
+5164	        arena,
+5165	        runtime_result_eviction.keepStepsFromEnv(),
+5166	        runtime_result_eviction.thresholdBytesFromEnv(),
+5167	        runtime_result_eviction.StorageTarget.fromSession(config.session_child_capability, config.tool_result_dir),
+5168	    );
+5169	    var within_turn_suffix = within_turn_suffix_ptr.*;
+5170	    defer within_turn_suffix_ptr.* = within_turn_suffix;
+5171	    var local_grants = local_grants_ptr.*;
+5172	    defer local_grants_ptr.* = local_grants;
+5173	    var turn_file_mutation_denials: runtime_tool_admission.TurnFileMutationDenials = .{};
+5174	    defer turn_file_mutation_denials.deinit(arena);
+5175	    var turn_review_cache: runtime_tool_admission.TurnReviewCache = .{};
+5176	    defer turn_review_cache.deinit(arena);
+5177	    var terminal_validation_retry: runtime_tool_admission.TerminalValidationRetryState = .{};
+5178	    defer terminal_validation_retry.deinit(arena);
+5179	    var shell_execution_failure_retry: runtime_tool_admission.ShellExecutionFailureRetryState = .{};
+5180	    defer shell_execution_failure_retry.deinit(arena);
+5181	    var malformed_arguments_retry: runtime_tool_admission.MalformedArgumentsRetryState = .{};
+5182	    var active_compaction_handoff: ?[]const u8 = null;
+5183	    var active_compaction_history_tail: []const ChatMessage = &.{};
+5184	    var compaction_history = job.history;
+5185	    var compacted_suffix_len: usize = 0;
+5186	    var compaction_count = latestCompactionCount(job.history);
+5187	    var request_token_calibration: ?struct {
+5188	        model: []const u8,
+5189	        cost: runtime_prompt_context.RequestTokenCalibration,
+5190	    } = null;
+5191	    var completed_tool_names = completed_tool_names_ptr.*;
+5192	    defer completed_tool_names_ptr.* = completed_tool_names;
+5193	    var context_delivery_state: context_contract.DeliveryState = if (deps.context_enabled)
+5194	        try context_contract.DeliveryState.initFromSnapshot(arena, job.context_snapshot)
+5195	    else
+5196	        .{};
+5197	    defer context_delivery_state.deinit(arena);
+5198	    const root_user_intent_context = switch (config.origin) {
+5199	        .subagent => if (config.current_prompt_is_root_authority)
+5200	            try auto_classifier_context.buildRootUserContextFromVerifiedRequests(
+5201	                arena,
+5202	                job.prompt,
+5203	                config.root_user_messages,
+5204	                config.root_user_evidence_complete,
+5205	            )
+5206	        else if (config.root_user_intent_context.len > 0)
+5207	            config.root_user_intent_context
+5208	        else if (config.root_user_messages.len > 0)
+5209	            try auto_classifier_context.buildRootUserContextFromVerifiedRequests(
+5210	                arena,
+5211	                config.root_user_messages[config.root_user_messages.len - 1],
+5212	                config.root_user_messages,
+5213	                config.root_user_evidence_complete,
+5214	            )
+5215	        else
+5216	            "",
+5217	        .root => if (job.root_user_intent_context.len > 0)
+5218	            job.root_user_intent_context
+5219	        else
+5220	            try auto_classifier_context.buildCanonicalRootUserContext(
+5221	                arena,
+5222	                job.prompt,
+5223	                job.history,
+5224	            ),
+... [showing 75 of 10662 lines; use start_line/line_count to read more.]
+</content>

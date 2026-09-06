@@ -1,0 +1,36 @@
+[grep] 5 matches for eviction
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/agent/runtime/result_eviction.zig:21- pub const default_threshold_bytes: usize = 256 * 1024;
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/agent/runtime/result_eviction.zig:22- pub const StorageTarget = result_store.StorageTarget;
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/agent/runtime/result_eviction.zig:23- 
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/agent/runtime/result_eviction.zig:24: /// Number of recent tool steps whose results survive a sweep; 0 disables eviction.
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/agent/runtime/result_eviction.zig:25- pub fn keepStepsFromEnv() usize {
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/agent/runtime/result_eviction.zig:26-     const value = io_mod.getenv(env_name) orelse return 0;
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/agent/runtime/result_eviction.zig:27-     return std.fmt.parseUnsigned(usize, std.mem.trim(u8, value, " \t"), 10) catch 0;
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/execution/managed_execution.zig:1876-     );
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/execution/managed_execution.zig:1877- }
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/execution/managed_execution.zig:1878- 
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/execution/managed_execution.zig:1879: test "delivery reservation pins a tombstone across capacity eviction" {
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/execution/managed_execution.zig:1880-     const alloc = std.testing.allocator;
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/execution/managed_execution.zig:1881-     var runtime = Runtime.init(alloc);
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/execution/managed_execution.zig:1882-     defer runtime.deinit();
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:437-     try std.testing.expect((try runtime.lookup(alloc, "https://example.com/c", null)) == null);
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:438- }
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:439- 
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:440: test "web_fetch cache snapshots remain valid after post lookup eviction" {
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:441-     const alloc = std.testing.allocator;
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:442-     var clock = MutableClock{ .now_ms = 1 };
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:443-     var runtime = testRuntime(&clock, 6, 8, 4096);
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:523-     try std.testing.expect((try runtime.lookup(alloc, "https://example.com/report.pdf", &store_a)) == null);
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:524- }
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:525- 
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:526: test "web_fetch cache eviction preserves returned durable artifact" {
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:527-     const alloc = std.testing.allocator;
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:528-     var clock = MutableClock{ .now_ms = 1 };
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/tooling/web_fetch_runtime.zig:529-     var runtime = testRuntime(&clock, 1024, 1, 4096);
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/main.zig:4185-     _ = @import("core/agent/runtime/execution_memory.zig");
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/main.zig:4186-     _ = @import("core/agent/runtime/tool_admission.zig");
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/main.zig:4187-     _ = @import("core/agent/runtime/prompt_context.zig");
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/src/main.zig:4188:     _ = @import("core/agent/runtime/result_eviction.zig");
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/main.zig:4189-     _ = @import("core/app/app_agent_runtime.zig");
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/main.zig:4190-     _ = @import("core/app/app_auth_runtime.zig");
+   /Users/kettan/career/raft-computer/refactor-remove-eviction/src/main.zig:4191-     _ = auth_runtime;

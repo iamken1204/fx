@@ -1,0 +1,3 @@
+[glob] 2 matches for tests/**/*context*
+ - tests/e2e/context-limits-live.test.ts
+ - tests/e2e/permission-mode-context.ts

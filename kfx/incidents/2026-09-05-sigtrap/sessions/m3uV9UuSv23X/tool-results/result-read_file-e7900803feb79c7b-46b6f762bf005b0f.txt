@@ -1,0 +1,74 @@
+<path>src/core/session/result_store.zig</path>
+<content>
+245	            .stored_output_bytes = durable_output.len,
+246	            .truncated = true,
+247	        },
+248	    };
+249	}
+250	
+251	pub fn storeLargeResult(
+252	    alloc: Allocator,
+253	    result_dir: []const u8,
+254	    tool_call_id: []const u8,
+255	    tool_name: []const u8,
+256	    text: []const u8,
+257	) ![]u8 {
+258	    return (StorageTarget{ .legacy_dir = result_dir }).store(alloc, tool_call_id, tool_name, text);
+259	}
+260	
+261	fn storeLargeResultAtHandle(
+262	    alloc: Allocator,
+263	    result_dir: []const u8,
+264	    handle: []const u8,
+265	    text: []const u8,
+266	) !void {
+267	    var capability = try session_child_store.SessionChildCapability.initLegacyRoute(
+268	        alloc,
+269	        result_dir,
+270	        .tool_results,
+271	        .writable,
+272	    );
+273	    defer capability.deinit();
+274	    return storeLargeResultAtHandleManaged(
+275	        alloc,
+276	        &capability,
+277	        handle,
+278	        text,
+279	    );
+280	}
+281	
+282	pub fn storeLargeResultManaged(
+283	    alloc: Allocator,
+284	    capability: *session_child_store.SessionChildCapability,
+285	    tool_call_id: []const u8,
+286	    tool_name: []const u8,
+287	    text: []const u8,
+288	) ![]u8 {
+289	    return (StorageTarget{ .managed = capability }).store(alloc, tool_call_id, tool_name, text);
+290	}
+291	
+292	fn storeLargeResultAtHandleManaged(
+293	    alloc: Allocator,
+294	    capability: *session_child_store.SessionChildCapability,
+295	    handle: []const u8,
+296	    text: []const u8,
+297	) !void {
+298	    var entry = try capability.atomicReplace(
+299	        alloc,
+300	        .tool_results,
+301	        handle,
+302	        text,
+303	    );
+304	    entry.deinit(alloc);
+305	}
+306	
+307	pub fn formatStoredResultOutput(alloc: Allocator, handle: []const u8, preview: []const u8, stored_bytes: usize) ![]u8 {
+308	    return std.fmt.allocPrint(
+309	        alloc,
+310	        "<tool_result_preview handle=\"{s}\" stored_bytes=\"{d}\">\n{s}\n</tool_result_preview>\n" ++
+311	            "<tool_result_handle>{s}</tool_result_handle>\n" ++
+312	            "Full redacted result is stored outside session JSON. Use read_tool_result with this handle to inspect a byte range or literal query.",
+313	        .{ handle, stored_bytes, preview, handle },
+314	    );
+... [showing 70 of 1095 lines; use start_line/line_count to read more.]
+</content>

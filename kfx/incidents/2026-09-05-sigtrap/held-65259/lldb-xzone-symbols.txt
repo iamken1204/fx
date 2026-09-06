@@ -1,0 +1,57 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) image lookup -rn xzm_xzone_malloc_freelist
+1 match found in /usr/lib/system/libsystem_malloc.dylib:
+        Address: libsystem_malloc.dylib[0x0000000180315638] (libsystem_malloc.dylib.__TEXT.__text + 198992)
+        Summary: libsystem_malloc.dylib`_xzm_xzone_malloc_freelist_outlined
+(lldb) image lookup -rn corruption
+2 matches found in /usr/lib/system/libsystem_malloc.dylib:
+        Address: libsystem_malloc.dylib[0x000000018030cbfc] (libsystem_malloc.dylib.__TEXT.__text + 163604)
+        Summary: libsystem_malloc.dylib`nanov2_guard_corruption_detected
+        Address: libsystem_malloc.dylib[0x00000001803262d8] (libsystem_malloc.dylib.__TEXT.__text + 267760)
+        Summary: libsystem_malloc.dylib`tiny_zero_corruption_abort
+1 match found in /usr/lib/system/libsystem_pthread.dylib:
+        Address: libsystem_pthread.dylib[0x00000001804f60f0] (libsystem_pthread.dylib.__TEXT.__text + 42984)
+        Summary: libsystem_pthread.dylib`_pthread_mutex_corruption_abort
+3 matches found in /usr/lib/system/libsystem_platform.dylib:
+        Address: libsystem_platform.dylib[0x00000001804ff5f8] (libsystem_platform.dylib.__TEXT.__text + 27992)
+        Summary: libsystem_platform.dylib`_os_lock_corruption_abort
+        Address: libsystem_platform.dylib[0x00000001804ff670] (libsystem_platform.dylib.__TEXT.__text + 28112)
+        Summary: libsystem_platform.dylib`_os_unfair_lock_corruption_abort
+        Address: libsystem_platform.dylib[0x00000001804ff71c] (libsystem_platform.dylib.__TEXT.__text + 28284)
+        Summary: libsystem_platform.dylib`_os_once_gate_corruption_abort
+3 matches found in /usr/lib/dyld:
+        Address: dyld[0x00000001801a6f20] (dyld.__TEXT.__text + 597792)
+        Summary: dyld`_os_unfair_lock_corruption_abort
+        Address: dyld[0x00000001801a6fcc] (dyld.__TEXT.__text + 597964)
+        Summary: dyld`_os_once_gate_corruption_abort
+        Address: dyld[0x00000001801a70e0] (dyld.__TEXT.__text + 598240)
+        Summary: dyld`_pthread_mutex_corruption_abort
+2 matches found in /System/Library/PrivateFrameworks/APFS.framework/Versions/A/APFS:
+        Address: APFS[0x00000001918d4030] (APFS.__TEXT.__text + 296320)
+        Summary: APFS`nx_is_panic_on_corruption_enabled
+        Address: APFS[0x00000001918db8e8] (APFS.__TEXT.__text + 327224)
+        Summary: APFS`nx_corruption_detected_int
+5 matches found in /System/Library/PrivateFrameworks/ProactiveSupport.framework/Versions/A/ProactiveSupport:
+        Address: ProactiveSupport[0x000000019e6d1aa0] (ProactiveSupport.__TEXT.__text + 81264)
+        Summary: ProactiveSupport`corruptionError.98
+        Address: ProactiveSupport[0x000000019e6d1aa0] (ProactiveSupport.__TEXT.__text + 81264)
+        Summary: ProactiveSupport`corruptionError.98
+        Address: ProactiveSupport[0x000000019e6d1aa0] (ProactiveSupport.__TEXT.__text + 81264)
+        Summary: ProactiveSupport`corruptionError.98
+        Address: ProactiveSupport[0x000000019e719af4] (ProactiveSupport.__TEXT.__text + 376260)
+        Summary: ProactiveSupport`+[_PASSqliteDatabase corruptionMarkerPathForPath:]
+        Address: ProactiveSupport[0x000000019e746b80] (ProactiveSupport.__TEXT.__objc_stubs + 9088)
+        Summary: ProactiveSupport`objc_msgSend$corruptionMarkerPathForPath:
+(lldb) detach
+Process 65259 detached

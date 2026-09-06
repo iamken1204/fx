@@ -1,0 +1,4 @@
+[grep] 3 files with matches for compaction
+ - tests/e2e/cli.test.ts
+ - tests/e2e/tui-composer-edit-contracts.test.ts
+ - tests/e2e/tui-resume-brutal.test.ts

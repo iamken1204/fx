@@ -1,0 +1,148 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) thread backtrace all
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+  * frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+    frame #1: 0x0000000188569cc0 libsystem_c.dylib`nanosleep + 220
+    frame #2: 0x00000001030d0168 kfx`core.app.app_lifecycle.holdOnTrapHandler + 188
+    frame #3: 0x00000001886d7744 libsystem_platform.dylib`_sigtramp + 56
+    frame #4: 0x00000001b592e3c8 MallocStackLogging`stack_logging_lite_malloc + 108
+    frame #5: 0x00000001b592e3c8 MallocStackLogging`stack_logging_lite_malloc + 108
+    frame #6: 0x00000001884fa178 libsystem_malloc.dylib`_malloc_zone_malloc_instrumented_or_legacy + 152
+    frame #7: 0x0000000103229324 kfx`heap.c_allocator_impl.alloc + 56
+    frame #8: 0x0000000102ac17d4 kfx`ui.transcript.painter.prepareTranscriptSurfacePaintInternal__anon_45321 + 864
+    frame #9: 0x0000000102ae6eac kfx`core.app.app_render_runtime.Runtime(main.App).renderFrameAttempt + 14564
+    frame #10: 0x0000000102aeecc4 kfx`main.App.flushRequestedFrame + 1856
+    frame #11: 0x0000000102bd67cc kfx`main.App.loopCommitFrame + 420
+    frame #12: 0x0000000102af1d64 kfx`main.App.run + 3564
+    frame #13: 0x0000000102af7a68 kfx`main.runNonBenchmark + 14840
+    frame #14: 0x0000000102af8b5c kfx`main.main + 2760
+    frame #15: 0x000000018830fe00 dyld`start + 6992
+  thread #2
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+    frame #1: 0x0000000188569cc0 libsystem_c.dylib`nanosleep + 220
+    frame #2: 0x00000001030d0168 kfx`core.app.app_lifecycle.holdOnTrapHandler + 188
+    frame #3: 0x00000001886d7744 libsystem_platform.dylib`_sigtramp + 56
+    frame #4: 0x00000001b592e3c8 MallocStackLogging`stack_logging_lite_malloc + 108
+    frame #5: 0x00000001b592e3c8 MallocStackLogging`stack_logging_lite_malloc + 108
+    frame #6: 0x00000001884fa178 libsystem_malloc.dylib`_malloc_zone_malloc_instrumented_or_legacy + 152
+    frame #7: 0x0000000103229324 kfx`heap.c_allocator_impl.alloc + 56
+    frame #8: 0x0000000102c811d4 kfx`core.session.session_discovery.classifyReadOnlyCandidate + 2216
+    frame #9: 0x0000000102c81b6c kfx`core.session.session_store.Store.openSubagentControlCapabilityMode + 412
+    frame #10: 0x0000000102ec148c kfx`core.subagent.tool_host.Runtime.executeManaged + 12404
+    frame #11: 0x0000000102ec3fc8 kfx`core.tooling.tool_runtime.executeSubagentProvider + 904
+    frame #12: 0x0000000103036e4c kfx`tools.agent.subagent.call + 84
+    frame #13: 0x0000000102eb8f2c kfx`core.tooling.tool_runtime.executeRegisteredTool + 3528
+    frame #14: 0x0000000102eba4f4 kfx`core.tooling.tool_runtime.executeToolCallAuthorized + 4180
+    frame #15: 0x0000000102ebc9a0 kfx`core.app.app_callbacks.Bindings(main.App).agentExecuteToolCall + 1484
+    frame #16: 0x0000000102f55780 kfx`core.agent.runtime.orchestrator.processQueuedPromptLoop + 107676
+    frame #17: 0x0000000102f7c324 kfx`core.agent.runtime.orchestrator.processQueuedPromptInner + 18144
+    frame #18: 0x0000000102f7fa1c kfx`core.agent.runtime.orchestrator.processAgentPrompt + 756
+    frame #19: 0x0000000102ea6384 kfx`main.App.processQueuedWork + 11556
+    frame #20: 0x0000000102e88be8 kfx`Thread.PosixThreadImpl.spawn__anon_594496.Instance.entryFn + 1412
+    frame #21: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #3
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #4
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #5
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #6
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #7
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #8
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #9
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #10
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #11
+    frame #0: 0x0000000188697c98 libsystem_kernel.dylib`__ulock_wait2 + 8
+    frame #1: 0x0000000102b26734 kfx`Io.Threaded.Thread.futexWaitInner + 124
+    frame #2: 0x0000000102b265c8 kfx`Io.Threaded.Thread.futexWaitUncancelable + 20
+    frame #3: 0x0000000102b35464 kfx`Io.Threaded.condWait + 104
+    frame #4: 0x0000000102b351f0 kfx`Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn + 424
+    frame #5: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #12
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+    frame #1: 0x0000000188569cc0 libsystem_c.dylib`nanosleep + 220
+    frame #2: 0x00000001030d0168 kfx`core.app.app_lifecycle.holdOnTrapHandler + 188
+    frame #3: 0x00000001886d7744 libsystem_platform.dylib`_sigtramp + 56
+    frame #4: 0x00000001b592e3c8 MallocStackLogging`stack_logging_lite_malloc + 108
+    frame #5: 0x00000001b592e3c8 MallocStackLogging`stack_logging_lite_malloc + 108
+    frame #6: 0x00000001884fa178 libsystem_malloc.dylib`_malloc_zone_malloc_instrumented_or_legacy + 152
+    frame #7: 0x0000000103229324 kfx`heap.c_allocator_impl.alloc + 56
+    frame #8: 0x0000000102f93c5c kfx`core.agent.runtime.assistant_stream.onStreamToolStart + 1924
+    frame #9: 0x0000000103112538 kfx`builtins.gateway.EventBridge.toolStart + 56
+    frame #10: 0x00000001030da7b4 kfx`gateway.responses_protocol.Reducer.applyJson + 1024
+    frame #11: 0x00000001030e7abc kfx`gateway.openai_codex.streamPrepared + 5324
+    frame #12: 0x00000001030eb248 kfx`gateway.openai_codex.streamCompletion + 1068
+    frame #13: 0x0000000102e9cc34 kfx`core.agent.runtime.gateway_step.streamModelCompletion + 1020
+    frame #14: 0x0000000102f41764 kfx`core.agent.runtime.orchestrator.processQueuedPromptLoop + 25728
+    frame #15: 0x0000000102f7c324 kfx`core.agent.runtime.orchestrator.processQueuedPromptInner + 18144
+    frame #16: 0x0000000102f7fa1c kfx`core.agent.runtime.orchestrator.processAgentPrompt + 756
+    frame #17: 0x0000000102ff3e20 kfx`core.subagent.agent_adapter.run + 9636
+    frame #18: 0x0000000102ff0eb8 kfx`main.App.runSubagentChild + 1180
+    frame #19: 0x0000000102fee3ec kfx`core.subagent.tool_host.runChild + 44
+    frame #20: 0x0000000102ec6080 kfx`Thread.PosixThreadImpl.spawn__anon_603833.Instance.entryFn + 7356
+    frame #21: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #13
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+    frame #1: 0x0000000188569cc0 libsystem_c.dylib`nanosleep + 220
+    frame #2: 0x0000000102b25b50 kfx`Io.Threaded.sleep + 388
+    frame #3: 0x00000001030dfd48 kfx`Thread.PosixThreadImpl.spawn__anon_745364.Instance.entryFn + 388
+    frame #4: 0x00000001886cdc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #14
+    frame #0: 0x0000000000000000 
+(lldb) image lookup -rn gCRAnnotations

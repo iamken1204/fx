@@ -1,0 +1,12 @@
+[grep] 1 matches for config-persistence
+   scripts/pgso/corpus.json:73-       "timeout_seconds": 60,
+   scripts/pgso/corpus.json:74-       "requires_tmux": false
+   scripts/pgso/corpus.json:75-     },
+   scripts/pgso/corpus.json:76-     {"name": "e2e-cli", "argv": ["bun", "test", "--max-concurrency", "1", "./cli.test.ts"], "test_file": "cli.test.ts", "allow_keychain": true},
+   scripts/pgso/corpus.json:77-     {"name": "e2e-ask-presentation", "argv": ["bun", "test", "--max-concurrency", "1", "./ask-presentation.test.ts"], "test_file": "ask-presentation.test.ts"},
+ - scripts/pgso/corpus.json:78:     {"name": "e2e-config-persistence", "argv": ["bun", "test", "--max-concurrency", "1", "./config-persistence.test.ts"], "test_file": "config-persistence.test.ts"},
+   scripts/pgso/corpus.json:79-     {"name": "e2e-prompt-history", "argv": ["bun", "test", "--max-concurrency", "1", "./prompt-history.test.ts"], "test_file": "prompt-history.test.ts"},
+   scripts/pgso/corpus.json:80-     {"name": "e2e-auth-refresh", "argv": ["bun", "test", "--max-concurrency", "1", "./auth-refresh.test.ts"], "test_file": "auth-refresh.test.ts"},
+   scripts/pgso/corpus.json:81-     {"name": "e2e-host-managed-auth", "argv": ["bun", "test", "--max-concurrency", "1", "./host-managed-auth.test.ts"], "test_file": "host-managed-auth.test.ts"},
+   scripts/pgso/corpus.json:82-     {"name": "e2e-file-tool-paths", "argv": ["bun", "test", "--max-concurrency", "1", "./file-tool-paths.test.ts"], "test_file": "file-tool-paths.test.ts"},
+   scripts/pgso/corpus.json:83-     {"name": "e2e-file-tool-permissions", "argv": ["bun", "test", "--max-concurrency", "1", "./file-tool-permissions.test.ts"], "test_file": "file-tool-permissions.test.ts"},

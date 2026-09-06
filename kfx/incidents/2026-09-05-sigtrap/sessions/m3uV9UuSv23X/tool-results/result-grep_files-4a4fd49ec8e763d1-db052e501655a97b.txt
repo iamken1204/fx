@@ -1,0 +1,14 @@
+[grep] 13 files with matches for evict
+ - FORK.md
+ - kfx/specs/context-budget.md
+ - kfx/specs/recoverable-session-history.md
+ - kfx/specs/threshold-eviction.md
+ - sdk/tests/test-wasm-module-cache.mjs
+ - src/core/agent/runtime/result_eviction.zig
+ - src/core/execution/managed_execution.zig
+ - src/core/terminal/contracts.zig
+ - src/core/terminal/native_session.zig
+ - src/core/terminal/recovery.zig
+ - src/core/tooling/web_fetch_runtime.zig
+ - src/core/workspace/change_tracker.zig
+ - src/main.zig

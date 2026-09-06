@@ -1,0 +1,19 @@
+[grep] 2 matches for startFakeGateway
+   tests/e2e/tmux-helpers.ts:394-     },
+   tests/e2e/tmux-helpers.ts:395-   };
+   tests/e2e/tmux-helpers.ts:396- }
+   tests/e2e/tmux-helpers.ts:397- 
+ - tests/e2e/tmux-helpers.ts:398: export function startFakeGateway(
+   tests/e2e/tmux-helpers.ts:399-   responses: FakeGatewayResponse[],
+   tests/e2e/tmux-helpers.ts:400-   options: FakeGatewayOptions = {},
+   tests/e2e/tmux-helpers.ts:401- ) {
+   tests/e2e/tmux-helpers.ts:402-   return serveFakeGateway(async (body) => {
+   tests/e2e/tmux-helpers.ts:407-     return typeof next === "function" ? await next(body) : next;
+   tests/e2e/tmux-helpers.ts:408-   }, options);
+   tests/e2e/tmux-helpers.ts:409- }
+   tests/e2e/tmux-helpers.ts:410- 
+ - tests/e2e/tmux-helpers.ts:411: // Same server and classifier handling as startFakeGateway, but every
+   tests/e2e/tmux-helpers.ts:412- // completion request is answered by the supplied callback instead of a
+   tests/e2e/tmux-helpers.ts:413- // finite queue. For suites that replay one response indefinitely or switch
+   tests/e2e/tmux-helpers.ts:414- // on their own state.
+   tests/e2e/tmux-helpers.ts:415- export function startDynamicFakeGateway(

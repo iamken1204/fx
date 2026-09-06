@@ -1,0 +1,1 @@
+[{"question":"目標 worktree 是乾淨的，但目前在 refactor-remove-eviction-v2（HEAD c3b4c6ef），不是指定的 refactor-remove-eviction；兩個分支都存在。要在哪個分支執行？原 fx worktree 的未追蹤事故檔案不會動。","answer":"使用目前 v2 分支"}]
