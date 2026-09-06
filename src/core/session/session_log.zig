@@ -3074,6 +3074,21 @@ pub const LoadedWritableSession = struct {
             null;
     }
 
+    /// Records a usage snapshot as its own checkpoint event. Callers that keep
+    /// a profile recovery marker wrap this in prepare/finish; children do not.
+    pub fn appendUsageCheckpoint(
+        self: *LoadedWritableSession,
+        alloc: Allocator,
+        snapshot: session_usage.Snapshot,
+        timestamp_ms: i64,
+    ) !CommitPosition {
+        return self.appendEvent(
+            alloc,
+            .{ .usage_checkpointed = .{ .usage = snapshot } },
+            timestamp_ms,
+        );
+    }
+
     pub fn appendEvent(
         self: *LoadedWritableSession,
         alloc: Allocator,

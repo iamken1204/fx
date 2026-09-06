@@ -2247,11 +2247,7 @@ fn persistUsageCheckpoint(
         writable,
         snapshot,
     );
-    _ = try writable.appendEvent(
-        ctx.alloc,
-        .{ .usage_checkpointed = .{ .usage = snapshot } },
-        recovery_checkpoint.timestamp_ms,
-    );
+    _ = try writable.appendUsageCheckpoint(ctx.alloc, snapshot, recovery_checkpoint.timestamp_ms);
     try store.finishUsageRecoveryCheckpoint(
         writable.active_id,
         recovery_checkpoint,
