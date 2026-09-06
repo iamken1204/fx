@@ -1,0 +1,184 @@
+<path>tests/e2e/cli.test.ts</path>
+<content>
+1  	import { describe, expect, test } from "bun:test";
+2  	import { spawnSync } from "node:child_process";
+3  	import { createServer } from "node:net";
+4  	import {
+5  	  chmodSync,
+6  	  existsSync,
+7  	  lstatSync,
+8  	  mkdtempSync,
+9  	  mkdirSync,
+10 	  readFileSync,
+11 	  readdirSync,
+12 	  realpathSync,
+13 	  renameSync,
+14 	  rmSync,
+15 	  symlinkSync,
+16 	  utimesSync,
+17 	  writeFileSync,
+18 	} from "node:fs";
+19 	import { homedir, platform, tmpdir } from "node:os";
+20 	import { join, sep } from "node:path";
+21 	import {
+22 	  cleanupIsolatedTestHome,
+23 	  createIsolatedTestHome,
+24 	  FX_BIN,
+25 	  HAS_API_KEY,
+26 	  REPO_ROOT,
+27 	  runFx,
+28 	} from "../evals/eval-helpers";
+29 	import {
+30 	  FAKE_GATEWAY_MODEL,
+31 	  fakeGatewayFinalText,
+32 	  startFakeGateway,
+33 	} from "./tmux-helpers";
+34 	
+35 	const TIMEOUT = 15_000;
+36 	const NO_GATEWAY_AUTH = {
+37 	  AI_GATEWAY_API_KEY: undefined,
+38 	  VERCEL_OIDC_TOKEN: undefined,
+39 	};
+40 	const MISSING_AUTH_MESSAGE =
+41 	  "fx needs access to Vercel AI Gateway. Run fx login to sign in, fx setup to use an API key, or set AI_GATEWAY_API_KEY.";
+42 	const MODERN_MCP_FIXTURE = join(
+43 	  import.meta.dirname,
+44 	  "fixtures",
+45 	  "mcp-modern-stdio.mjs",
+46 	);
+47 	
+48 	const KEYCHAIN_SERVICE = "FX_AI_GATEWAY_API_KEY";
+49 	
+50 	function maxLineWidth(text: string): number {
+51 	  return Math.max(...text.split(/\r?\n/).map((line) => Bun.stringWidth(line)));
+52 	}
+53 	
+54 	function sourceVersion(): string {
+55 	  const source = readFileSync(join(REPO_ROOT, "src/main.zig"), "utf8");
+56 	  const match = source.match(/pub const version = "([^"]+)";/);
+57 	  if (!match) throw new Error("src/main.zig version declaration not found");
+58 	  return match[1];
+59 	}
+60 	
+61 	function doctorSessionDiagnosticsLimit(): number {
+62 	  const source = readFileSync(
+63 	    join(REPO_ROOT, "src/core/cli/doctor_runtime.zig"),
+64 	    "utf8",
+65 	  );
+66 	  const match = source.match(/const default_session_diagnostics_limit: usize = (\d+);/);
+67 	  if (!match) throw new Error("doctor session diagnostics limit not found");
+68 	  return Number(match[1]);
+69 	}
+70 	
+71 	const SEEDED_GATEWAY_TOKEN = "seeded-access-token";
+72 	
+73 	function writeSeededFxAuth(
+74 	  home: string,
+75 	  teamId?: string,
+76 	  issuer = "https://vercel.com",
+77 	  expiresAtMs = Date.now() + 60 * 60 * 1000,
+78 	): void {
+79 	  const fxDir = join(home, ".fx");
+80 	  mkdirSync(fxDir, { recursive: true, mode: 0o700 });
+81 	  chmodSync(fxDir, 0o700);
+82 	  const authPath = join(fxDir, "auth.json");
+83 	  const auth: Record<string, string | number> = {
+84 	    version: 1,
+85 	    issuer,
+86 	    client_id: "test-client",
+87 	    access_token: SEEDED_GATEWAY_TOKEN,
+88 	    refresh_token: "seeded-refresh-token",
+89 	    expires_at_ms: expiresAtMs,
+90 	    scope: "openid",
+91 	    token_type: "Bearer",
+92 	  };
+93 	  if (teamId) {
+94 	    auth.team_id = teamId;
+95 	    auth.team_slug = "vercel-labs";
+96 	  }
+97 	  writeFileSync(authPath, JSON.stringify(auth) + "\n", { mode: 0o600 });
+98 	  chmodSync(authPath, 0o600);
+99 	}
+100	
+101	function startRequestCatcher() {
+102	  const requests: Array<{ method: string; path: string }> = [];
+103	  const server = Bun.serve({
+104	    hostname: "0.0.0.0",
+105	    port: 0,
+106	    fetch(request) {
+107	      const url = new URL(request.url);
+108	      requests.push({ method: request.method, path: url.pathname });
+109	      return Response.json({ revoked: true });
+110	    },
+111	  });
+112	  return {
+113	    issuerUrl: `http://127.0.0.1:${server.port}`,
+114	    endpoint: `http://localhost.:${server.port}/oauth/revoke`,
+115	    requests,
+116	    stop() {
+117	      server.stop(true);
+118	    },
+119	  };
+120	}
+121	
+122	function startLogoutIssuer(
+123	  revokeStatuses: number[],
+124	  authPath?: string,
+125	  revocationEndpoint?: string | null,
+126	) {
+127	  const providerDetail = `provider rejected ${SEEDED_GATEWAY_TOKEN} and seeded-refresh-token`;
+128	  const requests: Array<{
+129	    method: string;
+130	    path: string;
+131	    tokenTypeHint?: string;
+132	    validForm?: boolean;
+133	    localSessionPresent?: boolean;
+134	  }> = [];
+135	  let revokeAttempt = 0;
+136	  const server = Bun.serve({
+137	    hostname: "127.0.0.1",
+138	    port: 0,
+139	    async fetch(request) {
+140	      const url = new URL(request.url);
+141	      const issuerUrl = `http://127.0.0.1:${server.port}`;
+142	      if (url.pathname === "/.well-known/openid-configuration") {
+143	        requests.push({ method: request.method, path: url.pathname });
+144	        return Response.json({
+145	          issuer: issuerUrl,
+146	          device_authorization_endpoint: `${issuerUrl}/oauth/device`,
+147	          token_endpoint: `${issuerUrl}/oauth/token`,
+148	          ...(revocationEndpoint === null
+149	            ? {}
+150	            : {
+151	                revocation_endpoint:
+152	                  revocationEndpoint ?? `${issuerUrl}/oauth/revoke`,
+153	              }),
+154	        });
+155	      }
+156	      if (url.pathname === "/oauth/revoke") {
+157	        const form = await request.formData();
+158	        const tokenTypeHint = form.get("token_type_hint");
+159	        const expectedToken =
+160	          tokenTypeHint === "refresh_token"
+161	            ? "seeded-refresh-token"
+162	            : tokenTypeHint === "access_token"
+163	              ? SEEDED_GATEWAY_TOKEN
+164	              : null;
+165	        const validForm =
+166	          form.get("client_id") === "test-client" &&
+167	          expectedToken !== null &&
+168	          form.get("token") === expectedToken;
+169	        requests.push({
+170	          method: request.method,
+171	          path: url.pathname,
+172	          tokenTypeHint:
+173	            typeof tokenTypeHint === "string" ? tokenTypeHint : "missing",
+174	          validForm,
+175	          ...(authPath
+176	            ? { localSessionPresent: existsSync(authPath) }
+177	            : {}),
+178	        });
+179	        const configuredStatus = revokeStatuses[revokeAttempt] ?? 200;
+180	        revokeAttempt += 1;
+... [showing 180 of 5302 lines; use start_line/line_count to read more.]
+</content>

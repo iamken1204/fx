@@ -1,0 +1,48 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) image lookup -a 0x1884f1990
+      Address: libsystem_malloc.dylib[0x0000000180315990] (libsystem_malloc.dylib.__TEXT.__text + 199848)
+      Summary: libsystem_malloc.dylib`_xzm_xzone_malloc_freelist_outlined + 856
+(lldb) disassemble -s 0x1884f1940 -c24
+libsystem_malloc.dylib`_xzm_xzone_malloc_freelist_outlined:
+    0x1884f1940 <+776>: mov    x0, x22
+    0x1884f1944 <+780>: bl     0x1885027ec               ; symbol stub for: _platform_bzero
+    0x1884f1948 <+784>: mov    x0, x22
+    0x1884f194c <+788>: ldp    x29, x30, [sp, #0x60]
+    0x1884f1950 <+792>: ldp    x20, x19, [sp, #0x50]
+    0x1884f1954 <+796>: ldp    x22, x21, [sp, #0x40]
+    0x1884f1958 <+800>: ldp    x24, x23, [sp, #0x30]
+    0x1884f195c <+804>: ldp    x26, x25, [sp, #0x20]
+    0x1884f1960 <+808>: ldp    x28, x27, [sp, #0x10]
+    0x1884f1964 <+812>: add    sp, sp, #0x70
+    0x1884f1968 <+816>: retab  
+    0x1884f196c <+820>: mov    x8, x4
+    0x1884f1970 <+824>: stp    x20, x21, [sp, #-0x10]!
+    0x1884f1974 <+828>: adrp   x20, 26
+    0x1884f1978 <+832>: add    x20, x20, #0x93d          ; "BUG IN CLIENT OF LIBMALLOC: memory corruption of free block"
+    0x1884f197c <+836>: adrp   x21, 432286
+    0x1884f1980 <+840>: add    x21, x21, #0x578          ; gCRAnnotations
+    0x1884f1984 <+844>: str    x20, [x21, #0x8]
+    0x1884f1988 <+848>: str    x8, [x21, #0x38]
+    0x1884f198c <+852>: ldp    x20, x21, [sp], #0x10
+    0x1884f1990 <+856>: brk    #0x1
+    0x1884f1994 <+860>: b.hi   0x1884f18c4               ; <+652>
+    0x1884f1998 <+864>: tst    x8, #0xff00000000000000
+    0x1884f199c <+868>: adrp   x8, 443232
+(lldb) memory read -fx -s8 -c8 0x76b02ed20
+0x76b02ed20: 0x6c69665f64616572 0x0000000000000065
+0x76b02ed30: 0x0110000000000007 0x0123b0006483ba7b
+0x76b02ed40: 0x6b6419ec2bc9cd77 0x00000000002b7b0e
+0x76b02ed50: 0x0000000000000000 0x0000000000000000
+(lldb) detach
+Process 65259 detached

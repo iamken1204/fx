@@ -1,0 +1,11 @@
+[grep] 10 matches for StorageTarget
+ - src/core/agent/runtime/result_eviction.zig:22: pub const StorageTarget = result_store.StorageTarget;
+ - src/core/agent/runtime/result_eviction.zig:45:     target: ?StorageTarget,
+ - src/core/agent/runtime/result_eviction.zig:55:         target: ?StorageTarget,
+ - src/core/session/result_store.zig:22: pub const StorageTarget = union(enum) {
+ - src/core/session/result_store.zig:31:     ) ?StorageTarget {
+ - src/core/session/result_store.zig:39:         self: StorageTarget,
+ - src/core/session/result_store.zig:163:     target: StorageTarget,
+ - src/core/session/result_store.zig:203:     target: StorageTarget,
+ - src/core/session/result_store.zig:258:     return (StorageTarget{ .legacy_dir = result_dir }).store(alloc, tool_call_id, tool_name, text);
+ - src/core/session/result_store.zig:289:     return (StorageTarget{ .managed = capability }).store(alloc, tool_call_id, tool_name, text);

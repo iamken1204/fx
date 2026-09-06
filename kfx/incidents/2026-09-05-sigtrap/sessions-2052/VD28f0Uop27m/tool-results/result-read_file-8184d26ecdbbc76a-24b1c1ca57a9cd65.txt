@@ -1,0 +1,24 @@
+<path>/Users/kettan/career/raft-computer/refactor-remove-eviction/src/core/agent/runtime/orchestrator.zig</path>
+<content>
+40	const subagent_model_contract = @import("../../subagent/model_contract.zig");
+41	
+42	const runtime_config = @import("config.zig");
+43	const runtime_finalization = @import("finalization.zig");
+44	const runtime_deps = @import("deps.zig");
+45	const runtime_lifecycle = @import("lifecycle.zig");
+46	const runtime_prompt_context = @import("prompt_context.zig");
+47	const runtime_context_compaction = @import("context_compaction.zig");
+48	const runtime_result_eviction = @import("result_eviction.zig");
+49	const runtime_telemetry = @import("telemetry.zig");
+50	const runtime_tool_contracts = @import("tool_contracts.zig");
+51	const runtime_gateway_step = @import("gateway_step.zig");
+52	const runtime_vision_contracts = @import("vision_contracts.zig");
+53	const image_attachments = @import("../../images/image_attachments.zig");
+54	const runtime_assistant_stream = @import("assistant_stream.zig");
+55	const runtime_tool_presentation = @import("tool_presentation.zig");
+56	const runtime_execution_memory = @import("execution_memory.zig");
+57	const runtime_agent = @import("agent.zig");
+58	const runtime_tool_admission = @import("tool_admission.zig");
+59	const runtime_interruption = @import("interruption.zig");
+... [showing 20 of 10662 lines; use start_line/line_count to read more.]
+</content>

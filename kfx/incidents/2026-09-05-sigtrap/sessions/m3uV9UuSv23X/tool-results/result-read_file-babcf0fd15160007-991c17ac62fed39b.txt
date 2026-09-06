@@ -1,0 +1,34 @@
+<path>src/core/agent/runtime/orchestrator.zig</path>
+<content>
+5070	    );
+5071	    if (request.cancel_flag.load(.seq_cst)) return error.Cancelled;
+5072	    if (deps.push_interactive_notice) |push_notice| {
+5073	        try push_notice(deps.ctx, .{
+5074	            .topic = "context",
+5075	            .tone = .neutral,
+5076	            .body = "Compacting context…",
+5077	        });
+5078	    }
+5079	    var compacted = try runtime_context_compaction.compact(
+5080	        alloc,
+5081	        request.source_messages,
+5082	        .{
+5083	            .stream_provider = deps.agent_stream_provider,
+5084	            .model = compaction_model,
+5085	            .api_key = request.api_key,
+5086	            .credential_source = request.credential_source,
+5087	            .account_id = request.account_id,
+5088	            .gateway_team = request.gateway_team,
+5089	            .session_id = request.session_id,
+5090	            .retry_count = request.retry_count,
+5091	            .cancel_flag = request.cancel_flag,
+5092	            .accepted_tokens = accepted_tokens,
+5093	            .generation_tokens = compactor_generation_tokens,
+5094	            .compactor_input_tokens = runtime_prompt_context.usableInputTokensForGeneration(
+5095	                compactor_capabilities,
+5096	                @min(compactor_generation_tokens, accepted_tokens),
+5097	            ),
+5098	            .provider_options = model_capabilities.resolveProviderOptionsForCapabilities(
+5099	                compactor_capabilities,
+... [showing 30 of 10662 lines; use start_line/line_count to read more.]
+</content>

@@ -1,0 +1,49 @@
+<path>/Users/kettan/career/raft-computer/refactor-remove-eviction/kfx/specs/recoverable-session-history.md</path>
+<content>
+1 	# Recoverable Session History Spec
+2 	
+3 	Fork spec for the `kfx` patch stack. Status: not implemented. Nothing below exists in the tree.
+4 	
+5 	Phase 2 of the context-retention roadmap. Keep canonical session history lossless and give the model bounded, read-only tools to locate and recover exact turns after those turns leave the prompt.
+6 	
+7 	## Relationship and rollout order
+8 	
+9 	Phase 1 is [context-retention.md](context-retention.md). It extends the directly visible history horizon and moves retained history into the cacheable prompt prefix. This spec owns what happens beyond that horizon.
+10	
+11	The rollout order is:
+12	
+13	1. Ship Phase 1 Patch A and Patch C together.
+14	2. Add stable session-local history locators and exact bounded reads.
+15	3. Add deterministic history search and omission landmarks.
+16	4. Measure real long-session prompt use, retrieval success, and cache behavior.
+17	5. Reconsider Phase 1 Patch B (`FX_HISTORY_BUDGET_DIVISOR`) only after those measurements.
+18	
+19	This is a product rollout dependency, not a storage dependency. Phase 1 remains useful if Phase 2 is delayed. Phase 2 must also work with the upstream default history limit, but it does not replace Phase 1: recent turns stay directly visible, while older turns become recoverable on demand.
+20	
+21	## Problem
+22	
+23	The canonical session retains typed history after the model-context projection compacts it, and large tool results already remain available behind `read_tool_result` handles. The model has no corresponding way to navigate canonical conversation history.
+24	
+25	Once a turn leaves the prompt, the model sees only a line-capped rule-based summary or a budget-trim notice. Neither representation identifies the omitted source turns. If an early constraint, exact value, failed approach, or tool provenance was not copied into the summary, it is effectively unreachable even though fx still has the canonical record.
+26	
+27	Raising the turn limit delays this failure. It cannot remove it because every model has a finite context window, and sending all retained history eventually makes retrieval quality and request cost worse.
+28	
+29	## Goal
+30	
+31	Make prompt eviction reversible without treating historical text as current authority:
+32	
+33	- canonical history remains the source of truth;
+34	- omitted prompt spans carry compact navigation landmarks;
+35	- the model can search for candidate turns and read exact neighboring turns;
+36	- all retrieval output is bounded and enters the model as untrusted tool evidence;
+37	- recent history still uses the direct, cacheable Phase 1 path.
+38	
+39	The design follows the lossless-storage and query-time-projection direction described by Scroll in [Context as an Environment](https://arxiv.org/abs/2608.21690), but does not adopt its Python runtime or its full memory architecture.
+40	
+41	## Scope
+42	
+43	### Included
+44	
+45	- Stable, opaque, session-local locators for canonical history turns.
+... [showing 45 of 269 lines; use start_line/line_count to read more.]
+</content>

@@ -1,0 +1,4 @@
+[grep] 3 files with matches for read_tool_result
+ - tests/e2e/auto-mode-reliability.test.ts
+ - tests/e2e/conditional-guidance-oracle.ts
+ - tests/e2e/tui-gateway-stream-lifecycle.test.ts

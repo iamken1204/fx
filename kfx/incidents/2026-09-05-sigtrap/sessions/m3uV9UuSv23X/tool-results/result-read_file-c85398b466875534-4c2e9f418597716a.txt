@@ -1,0 +1,304 @@
+<path>tests/evals/eval-helpers.ts</path>
+<content>
+1  	// Model-backed eval helpers. Requires a built binary and AI_GATEWAY_API_KEY.
+2  	import { expect } from "bun:test";
+3  	import { execFileSync, execSync, spawn as nodeSpawn } from "node:child_process";
+4  	import {
+5  	  existsSync,
+6  	  mkdirSync,
+7  	  mkdtempSync,
+8  	  readFileSync,
+9  	  rmSync,
+10 	  writeFileSync,
+11 	} from "node:fs";
+12 	import { tmpdir } from "node:os";
+13 	import { join, resolve } from "node:path";
+14 	
+15 	export const FX_BIN = resolve(import.meta.dirname, "../../zig-out/bin/fx");
+16 	export const REPO_ROOT = resolve(import.meta.dirname, "../..");
+17 	
+18 	export function providerVersionTestEnv(env: Record<string, string | undefined>): Record<string, string | undefined> {
+19 	  const result = { ...env };
+20 	  if (env.FX_E2E_OPENAI_CODEX_MODELS_URL && !env.FX_E2E_CODEX_VERSION_URL && !env.FX_E2E_CODEX_CLIENT_VERSION) {
+21 	    result.FX_E2E_CODEX_CLIENT_VERSION = "0.153.0";
+22 	  }
+23 	  if ((env.FX_E2E_XAI_GROK_MODELS_URL || env.FX_E2E_XAI_GROK_RESPONSES_URL) && !env.FX_E2E_GROK_VERSION_URL && !env.FX_E2E_GROK_CLIENT_VERSION) {
+24 	    result.FX_E2E_GROK_CLIENT_VERSION = "1.0.6";
+25 	  }
+26 	  return result;
+27 	}
+28 	
+29 	export const EVAL_MODELS = [
+30 	  "anthropic/claude-sonnet-4.6",
+31 	  "xai/grok-4.20-multi-agent-beta",
+32 	] as const;
+33 	
+34 	export const EVAL_MODEL: string = process.env.EVAL_MODEL ?? EVAL_MODELS[0];
+35 	
+36 	function loadDotEnv(): Record<string, string> {
+37 	  const candidates = [join(REPO_ROOT, ".env"), join(REPO_ROOT, ".env.local")];
+38 	  const vars: Record<string, string> = {};
+39 	  for (const file of candidates) {
+40 	    if (!existsSync(file)) continue;
+41 	    const lines = readFileSync(file, "utf-8").split("\n");
+42 	    for (const line of lines) {
+43 	      const trimmed = line.trim();
+44 	      if (!trimmed || trimmed.startsWith("#")) continue;
+45 	      const eq = trimmed.indexOf("=");
+46 	      if (eq < 0) continue;
+47 	      const key = trimmed.slice(0, eq).trim();
+48 	      let value = trimmed.slice(eq + 1).trim();
+49 	      if (
+50 	        (value.startsWith('"') && value.endsWith('"')) ||
+51 	        (value.startsWith("'") && value.endsWith("'"))
+52 	      ) {
+53 	        value = value.slice(1, -1);
+54 	      }
+55 	      vars[key] = value;
+56 	    }
+57 	  }
+58 	  return vars;
+59 	}
+60 	
+61 	export function shouldLoadDotEnv(
+62 	  environment: NodeJS.ProcessEnv = process.env,
+63 	): boolean {
+64 	  return environment.FX_E2E_DISABLE_DOTENV !== "1";
+65 	}
+66 	
+67 	const dotEnvVars = shouldLoadDotEnv() ? loadDotEnv() : {};
+68 	
+69 	for (const [k, v] of Object.entries(dotEnvVars)) {
+70 	  if (!process.env[k]) process.env[k] = v;
+71 	}
+72 	
+73 	export interface HeadlessResult {
+74 	  output: string;
+75 	  exit_code: number;
+76 	  model: string;
+77 	  session_id: string;
+78 	  steps: number;
+79 	  tool_calls: Array<{
+80 	    name: string;
+81 	    status: string;
+82 	    command_result?: {
+83 	      kind?: string;
+84 	      command?: string;
+85 	      cwd?: string;
+86 	      exit_code?: number;
+87 	      signal?: string | null;
+88 	      timed_out?: boolean;
+89 	      stdout_bytes?: number;
+90 	      stderr_bytes?: number;
+91 	      truncated?: boolean;
+92 	    };
+93 	    question?: string;
+94 	  }>;
+95 	  error?: string;
+96 	}
+97 	
+98 	export interface EvalResult {
+99 	  json: HeadlessResult;
+100	  stdout: string;
+101	  stderr: string;
+102	  code: number | null;
+103	  workDir: string;
+104	}
+105	
+106	export interface EvalOptions {
+107	  timeoutSec?: number;
+108	  cwd?: string;
+109	  model?: string;
+110	  setup?: (dir: string) => Promise<void>;
+111	}
+112	
+113	const PREFIX = "fx-eval-";
+114	const HOME_PREFIX = "fx-eval-home-";
+115	const TEST_HOME_PREFIX = "fx-test-home-";
+116	
+117	export function createWorkDir(): string {
+118	  return mkdtempSync(join(tmpdir(), PREFIX));
+119	}
+120	
+121	export function cleanupWorkDir(dir: string): void {
+122	  try {
+123	    nodeSpawn("rm", ["-rf", dir], { stdio: "ignore", detached: true }).unref();
+124	  } catch {}
+125	}
+126	
+127	export function createIsolatedTestHome(): string {
+128	  return mkdtempSync(join(tmpdir(), TEST_HOME_PREFIX));
+129	}
+130	
+131	export function cleanupIsolatedTestHome(home: string): void {
+132	  rmSync(home, { recursive: true, force: true });
+133	}
+134	
+135	function createEvalHome(): string {
+136	  const home = mkdtempSync(join(tmpdir(), HOME_PREFIX));
+137	  mkdirSync(join(home, ".fx"), { recursive: true, mode: 0o700 });
+138	  writeFileSync(
+139	    join(home, ".fx", "settings.json"),
+140	    JSON.stringify({
+141	      permission_mode: "auto",
+142	      permission: {
+143	        bash: "allow",
+144	        edit: "allow",
+145	        read: "allow",
+146	      },
+147	    }) + "\n",
+148	    { mode: 0o600 },
+149	  );
+150	  return home;
+151	}
+152	
+153	function cleanupEvalHome(home: string): void {
+154	  rmSync(home, { recursive: true, force: true });
+155	}
+156	
+157	export function buildEvalProcessEnv(
+158	  home: string,
+159	  model: string,
+160	): Record<string, string | undefined> {
+161	  return {
+162	    ...dotEnvVars,
+163	    ...process.env,
+164	    NO_COLOR: "1",
+165	    HOME: home,
+166	    PATH: process.env.PATH ?? "",
+167	    FX_MODEL: model,
+168	  };
+169	}
+170	
+171	export async function runEval(
+172	  prompt: string,
+173	  opts: EvalOptions = {},
+174	): Promise<EvalResult> {
+175	  const { timeoutSec = 300, model = EVAL_MODEL, setup } = opts;
+176	
+177	  const workDir = opts.cwd ?? createWorkDir();
+178	  const home = createEvalHome();
+179	
+180	  try {
+181	    if (setup) {
+182	      await setup(workDir);
+183	    }
+184	
+185	    if (!existsSync(FX_BIN)) {
+186	      throw new Error(
+187	        `fx binary not found at ${FX_BIN}. Run 'zig build' first.`,
+188	      );
+189	    }
+190	
+191	    const args = [
+192	      "ask",
+193	      "--auto",
+194	      "--json",
+195	      "--no-save",
+196	      "--timeout",
+197	      String(timeoutSec * 1000),
+198	      prompt,
+199	    ];
+200	
+201	    const result = await new Promise<{
+202	      stdout: string;
+203	      stderr: string;
+204	      code: number | null;
+205	    }>((resolvePromise) => {
+206	      const env = buildEvalProcessEnv(home, model);
+207	      const child = nodeSpawn(FX_BIN, args, {
+208	        env,
+209	        cwd: workDir,
+210	        stdio: ["pipe", "pipe", "pipe"],
+211	      });
+212	
+213	      const stdoutBufs: Buffer[] = [];
+214	      const stderrBufs: Buffer[] = [];
+215	      child.stdout.on("data", (d: Buffer) => stdoutBufs.push(d));
+216	      child.stderr.on("data", (d: Buffer) => stderrBufs.push(d));
+217	      child.stdin.end();
+218	
+219	      child.on("close", (code: number | null) => {
+220	        resolvePromise({
+221	          stdout: Buffer.concat(stdoutBufs).toString(),
+222	          stderr: Buffer.concat(stderrBufs).toString(),
+223	          code,
+224	        });
+225	      });
+226	    });
+227	
+228	    let json: HeadlessResult;
+229	    try {
+230	      json = JSON.parse(result.stdout.trim());
+231	    } catch {
+232	      throw new Error(
+233	        `Failed to parse fx JSON output.\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
+234	      );
+235	    }
+236	
+237	    console.log("\n--- eval result ---");
+238	    console.log(`  exit code: ${result.code}`);
+239	    console.log(`  json.exit_code: ${json.exit_code}`);
+240	    console.log(`  json.model: ${json.model}`);
+241	    console.log(`  json.steps: ${json.steps}`);
+242	    console.log(`  json.tool_calls: ${json.tool_calls?.length ?? 0}`);
+243	    console.log(`  json.output length: ${json.output.length}`);
+244	    if (json.error) {
+245	      console.log(`  json.error: ${json.error}`);
+246	      console.log(`  json.output: ${json.output.slice(0, 500)}`);
+247	    }
+248	    if (result.stderr) {
+249	      console.log(`  stderr (last 500): ${result.stderr.slice(-500)}`);
+250	    }
+251	    console.log("--- end eval result ---\n");
+252	
+253	    if (json.error) {
+254	      throw new Error(
+255	        `fx returned error: ${json.error}\nstderr: ${result.stderr.slice(-1000)}`,
+256	      );
+257	    }
+258	
+259	    return {
+260	      json,
+261	      stdout: result.stdout,
+262	      stderr: result.stderr,
+263	      code: result.code,
+264	      workDir,
+265	    };
+266	  } finally {
+267	    cleanupEvalHome(home);
+268	  }
+269	}
+270	
+271	export function assertFileExists(dir: string, relativePath: string): void {
+272	  const full = join(dir, relativePath);
+273	  expect(existsSync(full)).toBe(true);
+274	}
+275	
+276	export function assertNoFile(dir: string, relativePath: string): void {
+277	  const full = join(dir, relativePath);
+278	  expect(existsSync(full)).toBe(false);
+279	}
+280	
+281	export function assertFileContains(
+282	  dir: string,
+283	  relativePath: string,
+284	  pattern: string | RegExp,
+285	): void {
+286	  const full = join(dir, relativePath);
+287	  expect(existsSync(full)).toBe(true);
+288	  const content = readFileSync(full, "utf-8");
+289	  if (typeof pattern === "string") {
+290	    expect(content).toContain(pattern);
+291	  } else {
+292	    expect(content).toMatch(pattern);
+293	  }
+294	}
+295	
+296	export function assertAnyFileContains(
+297	  dir: string,
+298	  extensions: string[],
+299	  pattern: string,
+300	): void {
+... [showing 300 of 538 lines; use start_line/line_count to read more.]
+</content>

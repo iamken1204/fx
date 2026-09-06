@@ -1,0 +1,4 @@
+[grep] 3 files with matches for compaction
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/cli.test.ts
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/tui-composer-edit-contracts.test.ts
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/tui-resume-brutal.test.ts

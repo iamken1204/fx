@@ -1,0 +1,157 @@
+{"app_name":"kfx","timestamp":"2026-09-05 20:52:12.00 +0800","app_version":"","slice_uuid":"e53f0ff6-0732-3457-af19-dcf3c155daa8","build_version":"","platform":1,"share_with_app_devs":1,"is_first_party":1,"bug_type":"309","os_version":"macOS 26.5.1 (25F80)","roots_installed":0,"incident_id":"392E4107-1431-4296-B74A-2FE182A0A4D0","name":"kfx"}
+{
+  "uptime" : 1100000,
+  "procRole" : "Unspecified",
+  "version" : 2,
+  "userID" : 501,
+  "deployVersion" : 210,
+  "modelCode" : "Mac16,10",
+  "coalitionID" : 31555,
+  "osVersion" : {
+    "train" : "macOS 26.5.1",
+    "build" : "25F80",
+    "releaseType" : "User"
+  },
+  "captureTime" : "2026-09-05 20:52:07.7927 +0800",
+  "codeSigningMonitor" : 2,
+  "incident" : "392E4107-1431-4296-B74A-2FE182A0A4D0",
+  "pid" : 95333,
+  "translated" : false,
+  "cpuType" : "ARM-64",
+  "procLaunch" : "2026-09-05 10:29:31.1324 +0800",
+  "procStartAbsTime" : 26194322111546,
+  "procExitAbsTime" : 27090876849699,
+  "procName" : "kfx",
+  "procPath" : "\/Users\/USER\/*\/kfx",
+  "parentProc" : "fish",
+  "parentPid" : 72360,
+  "coalitionName" : "com.mitchellh.ghostty",
+  "crashReporterKey" : "82DDC189-863B-ECED-796E-9A938D6ACF0A",
+  "appleIntelligenceStatus" : {"state":"available"},
+  "developerMode" : 1,
+  "responsiblePid" : 34222,
+  "responsibleProc" : "ghostty",
+  "codeSigningID" : "fx",
+  "codeSigningTeamID" : "",
+  "codeSigningFlags" : 570556929,
+  "codeSigningValidationCategory" : 10,
+  "codeSigningTrustLevel" : 4294967295,
+  "codeSigningAuxiliaryInfo" : 0,
+  "instructionByteStream" : {"beforePC":"\/w9f1ugDBKr0V7+p1AAA0JT2JJH1xDTQteIVkbQGAPmoHgD59FfBqA==","atPC":"IAAg1Ij5\/1QfHUjyCBs2kAixJJEIAUC5AAlCeuknnxo\/AQBxKQCAUg=="},
+  "bootSessionUUID" : "3668FB9B-D7BD-4D38-87A5-37EB67150BDA",
+  "sip" : "enabled",
+  "exception" : {"codes":"0x0000000000000001, 0x00000001884f1990","rawCodes":[1,6581852560],"type":"EXC_BREAKPOINT","signal":"SIGTRAP"},
+  "termination" : {"flags":0,"code":5,"namespace":"SIGNAL","indicator":"Trace\/BPT trap: 5","byProc":"exc handler","byPid":95333},
+  "os_fault" : {"process":"kfx"},
+  "asi" : {"libsystem_malloc.dylib":["BUG IN CLIENT OF LIBMALLOC: memory corruption of free block","Abort Cause 43298395680"]},
+  "extMods" : {"caller":{"thread_create":0,"thread_set_state":0,"task_for_pid":0},"system":{"thread_create":0,"thread_set_state":0,"task_for_pid":0},"targeted":{"thread_create":0,"thread_set_state":0,"task_for_pid":0},"warnings":0},
+  "faultingThread" : 9,
+  "threads" : [{"id":30039034,"threadState":{"x":[{"value":4},{"value":0},{"value":8},{"value":8},{"value":6135568928},{"value":4336335304,"symbolLocation":0,"symbol":"main.App.pacerFinish"},{"value":0},{"value":18446726482597246976},{"value":8},{"value":0},{"value":0},{"value":1000000000},{"value":0},{"value":32178},{"value":2},{"value":2},{"value":230},{"value":8420634272},{"value":0},{"value":6135557520},{"value":8},{"value":1},{"value":6135558480},{"value":0},{"value":0},{"value":4332665448,"symbolLocation":14840,"symbol":"main.runNonBenchmark"},{"value":6135582224},{"value":41963},{"value":6135610056}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4339853536},"cpsr":{"value":1610612736},"fp":{"value":6135556048},"sp":{"value":6135556000},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583559928},"far":{"value":0}},"queue":"com.apple.main-thread","frames":[{"imageOffset":38648,"symbol":"poll","symbolLocation":8,"imageIndex":1},{"imageOffset":8726752,"symbol":"posix.poll","symbolLocation":80,"imageIndex":0},{"imageOffset":1512324,"symbol":"main.App.run","symbolLocation":1036,"imageIndex":0},{"imageOffset":1538664,"symbol":"main.runNonBenchmark","symbolLocation":14840,"imageIndex":0},{"imageOffset":1543004,"symbol":"main","symbolLocation":2760,"imageIndex":0},{"imageOffset":130560,"symbol":"start","symbolLocation":6992,"imageIndex":2}]},{"id":30039041,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1730356,"symbol":"Io.Threaded.Thread.futexWaitInner","symbolLocation":124,"imageIndex":0},{"imageOffset":1786736,"symbol":"Io.Threaded.futexWait","symbolLocation":432,"imageIndex":0},{"imageOffset":5509232,"symbol":"core.subagent.tool_host.Runtime.executeManaged","symbolLocation":11352,"imageIndex":0},{"imageOffset":5521352,"symbol":"core.tooling.tool_runtime.executeSubagentProvider","symbolLocation":904,"imageIndex":0},{"imageOffset":7040588,"symbol":"tools.agent.subagent.call","symbolLocation":84,"imageIndex":0},{"imageOffset":5476140,"symbol":"core.tooling.tool_runtime.executeRegisteredTool","symbolLocation":3528,"imageIndex":0},{"imageOffset":5481716,"symbol":"core.tooling.tool_runtime.executeToolCallAuthorized","symbolLocation":4180,"imageIndex":0},{"imageOffset":5491104,"symbol":"core.app.app_callbacks.Bindings(main.App).agentExecuteToolCall","symbolLocation":1484,"imageIndex":0},{"imageOffset":6117248,"symbol":"core.agent.runtime.orchestrator.processQueuedPromptLoop","symbolLocation":107676,"imageIndex":0},{"imageOffset":6275876,"symbol":"core.agent.runtime.orchestrator.processQueuedPromptInner","symbolLocation":18144,"imageIndex":0},{"imageOffset":6289948,"symbol":"core.agent.runtime.orchestrator.processAgentPrompt","symbolLocation":756,"imageIndex":0},{"imageOffset":5399428,"symbol":"main.App.processQueuedWork","symbolLocation":11556,"imageIndex":0},{"imageOffset":5278696,"symbol":"Thread.PosixThreadImpl.spawn__anon_594496.Instance.entryFn","symbolLocation":1412,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":1},{"value":100000000},{"value":0},{"value":43307463368},{"value":32},{"value":18446726482597246976},{"value":100000000},{"value":0},{"value":100000000},{"value":18446744073709551614},{"value":1248539187},{"value":1751341424},{"value":1751341424},{"value":1916892481},{"value":544},{"value":43303452672},{"value":0},{"value":43301145552},{"value":6203950336},{"value":1},{"value":0},{"value":43301145552},{"value":6203951738},{"value":4341948264,"symbolLocation":296,"symbol":"_MergedGlobals.7288"},{"value":12},{"value":0},{"value":43317491290}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4332857140},"cpsr":{"value":0},"fp":{"value":6203950320},"sp":{"value":6203950256},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":30039045,"frames":[{"imageOffset":17160,"symbol":"__semwait_signal","symbolLocation":8,"imageIndex":1},{"imageOffset":56512,"symbol":"nanosleep","symbolLocation":220,"imageIndex":5},{"imageOffset":1727312,"symbol":"Io.Threaded.sleep","symbolLocation":388,"imageIndex":0},{"imageOffset":7735136,"symbol":"Io.Select(gateway.client.runBoundedHttpOperation__anon_744371.Event).concurrent__anon_744448.Context.start","symbolLocation":208,"imageIndex":0},{"imageOffset":1792420,"symbol":"Io.Threaded.Group.Task.start","symbolLocation":120,"imageIndex":0},{"imageOffset":1790376,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":352,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":4},{"value":0},{"value":1},{"value":1},{"value":29},{"value":999975791},{"value":52},{"value":0},{"value":8397357528,"symbolLocation":0,"symbol":"clock_sem"},{"value":16387},{"value":17},{"value":3},{"value":9223372036854775808},{"value":17333569622389030912},{"value":0},{"value":119999903164},{"value":334},{"value":8420634672},{"value":0},{"value":6254668224},{"value":6254668224},{"value":0},{"value":1000000000},{"value":6170320640},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":6582344896},"cpsr":{"value":1610612736},"fp":{"value":6254668208},"sp":{"value":6254668160},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583538440},"far":{"value":0}}},{"id":30039046,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1730356,"symbol":"Io.Threaded.Thread.futexWaitInner","symbolLocation":124,"imageIndex":0},{"imageOffset":1786736,"symbol":"Io.Threaded.futexWait","symbolLocation":432,"imageIndex":0},{"imageOffset":1723944,"symbol":"Io.Condition.waitInner","symbolLocation":280,"imageIndex":0},{"imageOffset":1837092,"symbol":"Io.TypeErasedQueue.getLocked","symbolLocation":1056,"imageIndex":0},{"imageOffset":1835368,"symbol":"Io.TypeErasedQueue.get","symbolLocation":104,"imageIndex":0},{"imageOffset":2313772,"symbol":"Io.async__anon_412178.TypeErased.start","symbolLocation":360,"imageIndex":0},{"imageOffset":1795256,"symbol":"Io.Threaded.Future.start","symbolLocation":124,"imageIndex":0},{"imageOffset":1790376,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":352,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":0},{"value":0},{"value":0},{"value":40},{"value":0},{"value":4333441708,"symbolLocation":0,"symbol":"Io.async__anon_412304.TypeErased.start"},{"value":0},{"value":6271495488},{"value":0},{"value":3},{"value":7778952},{"value":7112285569497394287},{"value":4349363632},{"value":43306598400},{"value":544},{"value":43304157184},{"value":0},{"value":6271492996},{"value":4340253280,"symbolLocation":0,"symbol":"__anon_9476"},{"value":0},{"value":6271495488},{"value":4340247632,"symbolLocation":0,"symbol":"__anon_3934"},{"value":4341949328,"symbolLocation":1360,"symbol":"_MergedGlobals.7288"},{"value":6271494872},{"value":6271495184},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4332857140},"cpsr":{"value":1073741824},"fp":{"value":6271492656},"sp":{"value":6271492592},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":30039047,"frames":[{"imageOffset":17160,"symbol":"__semwait_signal","symbolLocation":8,"imageIndex":1},{"imageOffset":56512,"symbol":"nanosleep","symbolLocation":220,"imageIndex":5},{"imageOffset":1727312,"symbol":"Io.Threaded.sleep","symbolLocation":388,"imageIndex":0},{"imageOffset":7735448,"symbol":"Io.Select(gateway.client.runBoundedHttpOperation__anon_744371.Event).concurrent__anon_744446.Context.start","symbolLocation":140,"imageIndex":0},{"imageOffset":1792420,"symbol":"Io.Threaded.Group.Task.start","symbolLocation":120,"imageIndex":0},{"imageOffset":1790376,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":352,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":4},{"value":0},{"value":1},{"value":1},{"value":0},{"value":5000000},{"value":52},{"value":0},{"value":8397357528,"symbolLocation":0,"symbol":"clock_sem"},{"value":16387},{"value":17},{"value":3},{"value":9223372036854775808},{"value":613127341232720628},{"value":102400},{"value":59},{"value":334},{"value":8420634672},{"value":0},{"value":6288320928},{"value":6288320928},{"value":18142225536598933504},{"value":1000000000},{"value":4341944320,"symbolLocation":61904,"symbol":"core.app.app_render_runtime.Runtime(main.App).file_path_storage_buf"},{"value":43301145556},{"value":4341948184,"symbolLocation":216,"symbol":"_MergedGlobals.7288"},{"value":5000000},{"value":4341103816,"symbolLocation":960,"symbol":"_MergedGlobals"},{"value":4341948264,"symbolLocation":296,"symbol":"_MergedGlobals.7288"}],"flavor":"ARM_THREAD_STATE64","lr":{"value":6582344896},"cpsr":{"value":1610612736},"fp":{"value":6288320912},"sp":{"value":6288320864},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583538440},"far":{"value":0}}},{"id":30039048,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1730356,"symbol":"Io.Threaded.Thread.futexWaitInner","symbolLocation":124,"imageIndex":0},{"imageOffset":1729992,"symbol":"Io.Threaded.Thread.futexWaitUncancelable","symbolLocation":20,"imageIndex":0},{"imageOffset":1791076,"symbol":"Io.Threaded.condWait","symbolLocation":104,"imageIndex":0},{"imageOffset":1790448,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":424,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":228},{"value":0},{"value":0},{"value":4340208228,"symbolLocation":0,"symbol":"heap.c_allocator_impl.free"},{"value":1},{"value":6305131328},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":31792958546391960},{"value":31775364212861236},{"value":274432},{"value":23},{"value":544},{"value":30303349044},{"value":0},{"value":6135567888},{"value":4340253280,"symbolLocation":0,"symbol":"__anon_9476"},{"value":228},{"value":0},{"value":6305148224},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4332857140},"cpsr":{"value":1073741824},"fp":{"value":6305148128},"sp":{"value":6305148064},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":30039049,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1730356,"symbol":"Io.Threaded.Thread.futexWaitInner","symbolLocation":124,"imageIndex":0},{"imageOffset":1786736,"symbol":"Io.Threaded.futexWait","symbolLocation":432,"imageIndex":0},{"imageOffset":1723944,"symbol":"Io.Condition.waitInner","symbolLocation":280,"imageIndex":0},{"imageOffset":1837092,"symbol":"Io.TypeErasedQueue.getLocked","symbolLocation":1056,"imageIndex":0},{"imageOffset":1835368,"symbol":"Io.TypeErasedQueue.get","symbolLocation":104,"imageIndex":0},{"imageOffset":1907248,"symbol":"http.Client.connectTcpOptions","symbolLocation":436,"imageIndex":0},{"imageOffset":1905960,"symbol":"http.Client.connect","symbolLocation":324,"imageIndex":0},{"imageOffset":2324964,"symbol":"http.Client.request","symbolLocation":1084,"imageIndex":0},{"imageOffset":7734708,"symbol":"Io.Select(gateway.client.runBoundedHttpOperation__anon_744371.Event).concurrent__anon_744475.Context.start","symbolLocation":388,"imageIndex":0},{"imageOffset":1792420,"symbol":"Io.Threaded.Group.Task.start","symbolLocation":120,"imageIndex":0},{"imageOffset":1790376,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":352,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":0},{"value":0},{"value":0},{"value":40},{"value":0},{"value":4333440196,"symbolLocation":0,"symbol":"Io.async__anon_412178.TypeErased.start"},{"value":0},{"value":6321974592},{"value":0},{"value":3},{"value":6},{"value":43301176160},{"value":6321969632},{"value":43301175296},{"value":544},{"value":43304714240},{"value":0},{"value":6321966916},{"value":4340253280,"symbolLocation":0,"symbol":"__anon_9476"},{"value":0},{"value":6321974592},{"value":4340247632,"symbolLocation":0,"symbol":"__anon_3934"},{"value":4341949328,"symbolLocation":1360,"symbol":"_MergedGlobals.7288"},{"value":6321967440},{"value":6321969504},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4332857140},"cpsr":{"value":1073741824},"fp":{"value":6321966576},"sp":{"value":6321966512},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":30039051,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1730356,"symbol":"Io.Threaded.Thread.futexWaitInner","symbolLocation":124,"imageIndex":0},{"imageOffset":1729992,"symbol":"Io.Threaded.Thread.futexWaitUncancelable","symbolLocation":20,"imageIndex":0},{"imageOffset":1791076,"symbol":"Io.Threaded.condWait","symbolLocation":104,"imageIndex":0},{"imageOffset":1790448,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":424,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":228},{"value":0},{"value":0},{"value":4340208228,"symbolLocation":0,"symbol":"heap.c_allocator_impl.free"},{"value":1},{"value":0},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":31810552879922068},{"value":31792958546391960},{"value":276480},{"value":23},{"value":544},{"value":30320128920},{"value":0},{"value":6135567888},{"value":4340253280,"symbolLocation":0,"symbol":"__anon_9476"},{"value":228},{"value":0},{"value":6237842752},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4332857140},"cpsr":{"value":1073741824},"fp":{"value":6237842656},"sp":{"value":6237842592},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":30039052,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1730356,"symbol":"Io.Threaded.Thread.futexWaitInner","symbolLocation":124,"imageIndex":0},{"imageOffset":1729992,"symbol":"Io.Threaded.Thread.futexWaitUncancelable","symbolLocation":20,"imageIndex":0},{"imageOffset":1791076,"symbol":"Io.Threaded.condWait","symbolLocation":104,"imageIndex":0},{"imageOffset":1790448,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":424,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":228},{"value":0},{"value":0},{"value":4340208228,"symbolLocation":0,"symbol":"heap.c_allocator_impl.free"},{"value":0},{"value":0},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":613056963898603856},{"value":613035501947023780},{"value":96256},{"value":59},{"value":544},{"value":34880399780},{"value":0},{"value":6135567888},{"value":4340253280,"symbolLocation":0,"symbol":"__anon_9476"},{"value":228},{"value":0},{"value":6355627328},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4332857140},"cpsr":{"value":1073741824},"fp":{"value":6355627232},"sp":{"value":6355627168},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"triggered":true,"id":30039053,"threadState":{"x":[{"value":4349034496},{"value":4349036160},{"value":1},{"value":4349066304},{"value":43298395680},{"value":0},{"value":18446744072631617535},{"value":18446726482597246976},{"value":43298395680},{"value":0},{"value":532606849149884770},{"value":0},{"value":4294967297},{"value":7112285569489053007},{"value":4349331480},{"value":43298390016},{"value":11151761104},{"value":18446744072367376383},{"value":0},{"value":0},{"value":43298395680},{"value":1},{"value":4098},{"value":8397439144,"symbolLocation":0,"symbol":"si_module_static_mdns.si"},{"value":0},{"value":6372452320},{"value":0},{"value":43298395680},{"value":8}],"flavor":"ARM_THREAD_STATE64","lr":{"value":6583891376},"cpsr":{"value":536870912},"fp":{"value":6372452048},"sp":{"value":6372451952},"esr":{"value":4060086273,"description":"(Breakpoint) brk 1"},"pc":{"value":6581852560,"matchesCrashFrame":1},"far":{"value":0}},"frames":[{"imageOffset":203152,"symbol":"_xzm_xzone_malloc_freelist_outlined","symbolLocation":856,"imageIndex":6},{"imageOffset":26032,"symbol":"si_list_concat","symbolLocation":76,"imageIndex":7},{"imageOffset":52472,"symbol":"si_addrinfo_list_from_hostent","symbolLocation":172,"imageIndex":7},{"imageOffset":52136,"symbol":"mdns_addrinfo","symbolLocation":700,"imageIndex":7},{"imageOffset":51356,"symbol":"search_addrinfo","symbolLocation":176,"imageIndex":7},{"imageOffset":22596,"symbol":"si_addrinfo","symbolLocation":1352,"imageIndex":7},{"imageOffset":21076,"symbol":"getaddrinfo","symbolLocation":172,"imageIndex":7},{"imageOffset":1568256,"symbol":"Io.Threaded.netLookup","symbolLocation":400,"imageIndex":0},{"imageOffset":2314996,"symbol":"Io.async__anon_412304.TypeErased.start","symbolLocation":72,"imageIndex":0},{"imageOffset":1795256,"symbol":"Io.Threaded.Future.start","symbolLocation":124,"imageIndex":0},{"imageOffset":1790376,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":352,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}]},{"id":30039054,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1730356,"symbol":"Io.Threaded.Thread.futexWaitInner","symbolLocation":124,"imageIndex":0},{"imageOffset":1729992,"symbol":"Io.Threaded.Thread.futexWaitUncancelable","symbolLocation":20,"imageIndex":0},{"imageOffset":1791076,"symbol":"Io.Threaded.condWait","symbolLocation":104,"imageIndex":0},{"imageOffset":1790448,"symbol":"Thread.PosixThreadImpl.spawn__anon_66376.Instance.entryFn","symbolLocation":424,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":228},{"value":0},{"value":0},{"value":40},{"value":0},{"value":18446726482597246976},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":1636466577257925248},{"value":1636448982924394992},{"value":133120},{"value":47},{"value":544},{"value":48810877424},{"value":0},{"value":6135567888},{"value":4340253280,"symbolLocation":0,"symbol":"__anon_9476"},{"value":228},{"value":0},{"value":6389280064},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4332857140},"cpsr":{"value":1073741824},"fp":{"value":6389279968},"sp":{"value":6389279904},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":31041945,"frames":[],"threadState":{"x":[{"value":6136885248},{"value":0},{"value":6136348672},{"value":0},{"value":278532},{"value":18446744073709551615},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":0},"cpsr":{"value":0},"fp":{"value":0},"sp":{"value":6136885248},"esr":{"value":0},"pc":{"value":6583782408},"far":{"value":0}}},{"id":31063373,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1730356,"symbol":"Io.Threaded.Thread.futexWaitInner","symbolLocation":124,"imageIndex":0},{"imageOffset":1786736,"symbol":"Io.Threaded.futexWait","symbolLocation":432,"imageIndex":0},{"imageOffset":1723944,"symbol":"Io.Condition.waitInner","symbolLocation":280,"imageIndex":0},{"imageOffset":1837092,"symbol":"Io.TypeErasedQueue.getLocked","symbolLocation":1056,"imageIndex":0},{"imageOffset":1835368,"symbol":"Io.TypeErasedQueue.get","symbolLocation":104,"imageIndex":0},{"imageOffset":7767596,"symbol":"Io.Select(gateway.client.runBoundedHttpOperation__anon_746232.Event).await","symbolLocation":80,"imageIndex":0},{"imageOffset":7761708,"symbol":"gateway.openai_codex.streamPrepared","symbolLocation":2696,"imageIndex":0},{"imageOffset":7778556,"symbol":"gateway.openai_codex.streamCompletion","symbolLocation":1068,"imageIndex":0},{"imageOffset":5360692,"symbol":"core.agent.runtime.gateway_step.streamModelCompletion","symbolLocation":1020,"imageIndex":0},{"imageOffset":6035300,"symbol":"core.agent.runtime.orchestrator.processQueuedPromptLoop","symbolLocation":25728,"imageIndex":0},{"imageOffset":6275876,"symbol":"core.agent.runtime.orchestrator.processQueuedPromptInner","symbolLocation":18144,"imageIndex":0},{"imageOffset":6289948,"symbol":"core.agent.runtime.orchestrator.processAgentPrompt","symbolLocation":756,"imageIndex":0},{"imageOffset":6766112,"symbol":"core.subagent.agent_adapter.run","symbolLocation":9636,"imageIndex":0},{"imageOffset":6753976,"symbol":"main.App.runSubagentChild","symbolLocation":1180,"imageIndex":0},{"imageOffset":6743020,"symbol":"core.subagent.tool_host.runChild","symbolLocation":44,"imageIndex":0},{"imageOffset":5529728,"symbol":"Thread.PosixThreadImpl.spawn__anon_603833.Instance.entryFn","symbolLocation":7356,"imageIndex":0},{"imageOffset":27736,"symbol":"_pthread_start","symbolLocation":136,"imageIndex":4},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":4}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":0},{"value":0},{"value":0},{"value":568},{"value":0},{"value":18446726482597246976},{"value":0},{"value":0},{"value":568},{"value":6135567884},{"value":3696948},{"value":7112285569491995375},{"value":4349341112},{"value":43301208064},{"value":544},{"value":43304992768},{"value":0},{"value":6170026420},{"value":4340253280,"symbolLocation":0,"symbol":"__anon_9476"},{"value":0},{"value":0},{"value":4340247632,"symbolLocation":0,"symbol":"__anon_3934"},{"value":4341949328,"symbolLocation":1360,"symbol":"_MergedGlobals.7288"},{"value":43301145556},{"value":6170027240},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4332857140},"cpsr":{"value":2147483648},"fp":{"value":6170026080},"sp":{"value":6170026016},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}}],
+  "usedImages" : [
+  {
+    "source" : "P",
+    "arch" : "arm64",
+    "base" : 4331126784,
+    "size" : 9803116,
+    "uuid" : "e53f0ff6-0732-3457-af19-dcf3c155daa8",
+    "path" : "\/Users\/USER\/*\/kfx",
+    "name" : "kfx"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6583521280,
+    "size" : 250544,
+    "uuid" : "cc1cf985-bc65-3725-809f-4c1e36b8f4ba",
+    "path" : "\/usr\/lib\/system\/libsystem_kernel.dylib",
+    "name" : "libsystem_kernel.dylib"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6579748864,
+    "size" : 680472,
+    "uuid" : "a237ef81-b68b-37ba-a165-92c965529534",
+    "path" : "\/usr\/lib\/dyld",
+    "name" : "dyld"
+  },
+  {
+    "size" : 0,
+    "source" : "A",
+    "base" : 0,
+    "uuid" : "00000000-0000-0000-0000-000000000000"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6583775232,
+    "size" : 52028,
+    "uuid" : "4f33683c-18c8-39a1-800b-2e3bd43bcc13",
+    "path" : "\/usr\/lib\/system\/libsystem_pthread.dylib",
+    "name" : "libsystem_pthread.dylib"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6582288384,
+    "size" : 527776,
+    "uuid" : "694b7881-1bf3-3d0f-8f19-b50ae4e8ef8a",
+    "path" : "\/usr\/lib\/system\/libsystem_c.dylib",
+    "name" : "libsystem_c.dylib"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6581649408,
+    "size" : 328152,
+    "uuid" : "5fae4807-4d2b-3a95-a63a-dd96d3da11b4",
+    "path" : "\/usr\/lib\/system\/libsystem_malloc.dylib",
+    "name" : "libsystem_malloc.dylib"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6583865344,
+    "size" : 194284,
+    "uuid" : "3d62f2d9-f516-31bf-83c7-e203d872300b",
+    "path" : "\/usr\/lib\/system\/libsystem_info.dylib",
+    "name" : "libsystem_info.dylib"
+  }
+],
+  "sharedCache" : {
+  "base" : 6578618368,
+  "size" : 5990596608,
+  "uuid" : "ff7119a7-f64d-305d-8135-7e6eb1c207d1"
+},
+  "vmSummary" : "ReadOnly portion of Libraries: Total=871.8M resident=0K(0%) swapped_out_or_unallocated=871.8M(100%)\nWritable regions: Total=315.1M written=497K(0%) resident=497K(0%) swapped_out=0K(0%) unallocated=314.6M(100%)\n\n                                VIRTUAL   REGION \nREGION TYPE                        SIZE    COUNT (non-coalesced) \n===========                     =======  ======= \nActivity Tracing                   256K        1 \nKernel Alloc Once                   32K        1 \nMALLOC                            56.6M       19 \nMALLOC guard page                 3584K        4 \nMemory Tag 22                     64.0M        1 \nSTACK GUARD                        208K       13 \nStack                            192.9M       14 \nVM_ALLOCATE                          4K        1 \n__AUTH                            1321K      148 \n__AUTH_CONST                      17.7M      340 \n__CTF                               824        1 \n__DATA                            5201K      297 \n__DATA_CONST                      16.3M      339 \n__DATA_DIRTY                      1320K      284 \n__FONT_DATA                        2352        1 \n__LINKEDIT                       574.5M        2 \n__OBJC_RO                         79.1M        1 \n__OBJC_RW                         2599K        1 \n__TEXT                           297.3M      348 \n__TPRO_CONST                       128K        2 \nmapped file                        308K        5 \npage table in kernel               497K        1 \nshared memory                       80K        4 \n===========                     =======  ======= \nTOTAL                              1.3G     1828 \n",
+  "legacyInfo" : {
+  "threadTriggered" : {
+
+  }
+},
+  "logWritingSignature" : "75d96195d516c3c7a50b97468ca0f2c7dd0ab291",
+  "bug_type" : "309",
+  "roots_installed" : 0,
+  "trmStatus" : 8192,
+  "trialInfo" : {
+  "rollouts" : [
+    {
+      "rolloutId" : "6785b622614dbd65bffd025a",
+      "factorPackIds" : [
+
+      ],
+      "deploymentId" : 240000017
+    },
+    {
+      "rolloutId" : "639124e81d92412bfb4880b3",
+      "factorPackIds" : [
+
+      ],
+      "deploymentId" : 240000012
+    }
+  ],
+  "experiments" : [
+
+  ]
+}
+}

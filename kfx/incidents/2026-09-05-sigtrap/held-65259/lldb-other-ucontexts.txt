@@ -1,0 +1,24 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) memory read -fx -s8 -c8 0x1715878b8
+0x1715878b8: 0x0000000000000000 0x0000000171587850
+0x1715878c8: 0x0000000000000000 0x0000000000000000
+0x1715878d8: 0x0000000000000000 0x0000000000000330
+0x1715878e8: 0x00000001715878f0 0x0000000000000000
+(lldb) memory read -fx -s8 -c8 0x16e495798
+0x16e495798: 0x0000000000000000 0x000000016e495730
+0x16e4957a8: 0x0000000000000000 0x0000000000000000
+0x16e4957b8: 0x0000000000000000 0x0000000000000330
+0x16e4957c8: 0x000000016e4957d0 0x0000000000000000
+(lldb) detach
+Process 65259 detached

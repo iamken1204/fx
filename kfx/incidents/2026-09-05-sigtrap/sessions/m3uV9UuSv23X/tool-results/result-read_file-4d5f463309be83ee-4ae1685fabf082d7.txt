@@ -1,0 +1,270 @@
+<path>src/core/agent/runtime/result_eviction.zig</path>
+<content>
+1  	//! Projects the within-turn suffix for one model request: tool results older
+2  	//! than the most recent steps become a short stub that carries a
+3  	//! `read_tool_result` handle. The canonical suffix, the session log, and the
+4  	//! recovery checkpoints keep the full text; only the request body changes.
+5  	//!
+6  	//! Eviction advances only when the un-evicted result bytes ahead of the kept
+7  	//! window reach `threshold_bytes`; one sweep then evicts everything except the
+8  	//! newest `keep_steps` steps. Between sweeps the projected prefix stays
+9  	//! byte-identical, so the provider prompt cache keeps hitting for as long as
+10 	//! the threshold allows.
+11 	const std = @import("std");
+12 	const types = @import("../../shared/types.zig");
+13 	const io_mod = @import("../../shared/io.zig");
+14 	const result_store = @import("../../session/result_store.zig");
+15 	
+16 	const Allocator = std.mem.Allocator;
+17 	const ChatMessage = types.ChatMessage;
+18 	
+19 	pub const env_name = "FX_KEEP_RECENT_RESULTS";
+20 	pub const threshold_env_name = "FX_EVICT_THRESHOLD_KB";
+21 	pub const default_threshold_bytes: usize = 256 * 1024;
+22 	pub const StorageTarget = result_store.StorageTarget;
+23 	
+24 	/// Number of recent tool steps whose results survive a sweep; 0 disables eviction.
+25 	pub fn keepStepsFromEnv() usize {
+26 	    const value = io_mod.getenv(env_name) orelse return 0;
+27 	    return std.fmt.parseUnsigned(usize, std.mem.trim(u8, value, " \t"), 10) catch 0;
+28 	}
+29 	
+30 	/// Evictable result bytes that trigger a sweep; unset or invalid falls back to
+31 	/// the default. An explicit 0 sweeps on every step.
+32 	pub fn thresholdBytesFromEnv() usize {
+33 	    const value = io_mod.getenv(threshold_env_name) orelse return default_threshold_bytes;
+34 	    const kb = std.fmt.parseUnsigned(usize, std.mem.trim(u8, value, " \t"), 10) catch
+35 	        return default_threshold_bytes;
+36 	    return kb * 1024;
+37 	}
+38 	
+39 	/// One per turn. Stubs and stored handles live in the turn arena; each
+40 	/// projected slice lives in the scratch allocator handed to `view`.
+41 	pub const State = struct {
+42 	    turn_arena: Allocator,
+43 	    keep_steps: usize,
+44 	    threshold_bytes: usize,
+45 	    target: ?StorageTarget,
+46 	    /// Suffix messages before this index are projected as stubs.
+47 	    evicted_before: usize = 0,
+48 	    /// Stub text per evicted suffix index, built once.
+49 	    stubs: std.ArrayList(?[]const u8) = .empty,
+50 	
+51 	    pub fn init(
+52 	        turn_arena: Allocator,
+53 	        keep_steps: usize,
+54 	        threshold_bytes: usize,
+55 	        target: ?StorageTarget,
+56 	    ) State {
+57 	        return .{
+58 	            .turn_arena = turn_arena,
+59 	            .keep_steps = keep_steps,
+60 	            .threshold_bytes = threshold_bytes,
+61 	            .target = target,
+62 	        };
+63 	    }
+64 	
+65 	    /// Messages before `request_start` were already cut from the request by
+66 	    /// compaction, so they count toward neither the step window nor the
+67 	    /// threshold; the projection still covers them because callers slice by
+68 	    /// index.
+69 	    ///
+70 	    /// Returns `suffix` itself while nothing is evicted, otherwise a copy from
+71 	    /// `scratch` whose evicted tool results carry stub content.
+72 	    pub fn view(
+73 	        self: *State,
+74 	        scratch: Allocator,
+75 	        suffix: []const ChatMessage,
+76 	        request_start: usize,
+77 	    ) ![]const ChatMessage {
+78 	        if (self.keep_steps == 0) return suffix;
+79 	
+80 	        const from = @max(self.evicted_before, @min(request_start, suffix.len));
+81 	        var total_steps: usize = 0;
+82 	        for (suffix[from..]) |message| {
+83 	            if (startsStep(message)) total_steps += 1;
+84 	        }
+85 	        if (total_steps > self.keep_steps) {
+86 	            // Sum the un-evicted result bytes ahead of the newest keep_steps
+87 	            // steps; sweep the whole region once they reach the threshold.
+88 	            const kept_from_step = total_steps - self.keep_steps + 1;
+89 	            var step: usize = 0;
+90 	            var cutoff: usize = from;
+91 	            var evictable_bytes: usize = 0;
+92 	            for (suffix[from..], from..) |message, index| {
+93 	                if (startsStep(message)) {
+94 	                    step += 1;
+95 	                    if (step == kept_from_step) {
+96 	                        cutoff = index;
+97 	                        break;
+98 	                    }
+99 	                } else if (message.role == .tool) {
+100	                    if (message.content) |content| evictable_bytes += content.len;
+101	                }
+102	            }
+103	            if (evictable_bytes >= self.threshold_bytes) self.evicted_before = cutoff;
+104	        }
+105	        if (self.evicted_before == 0) return suffix;
+106	
+107	        const projected = try scratch.dupe(ChatMessage, suffix);
+108	        for (projected[0..self.evicted_before], 0..) |*message, index| {
+109	            if (message.role != .tool) continue;
+110	            message.content = try self.stubFor(suffix[index], index);
+111	        }
+112	        return projected;
+113	    }
+114	
+115	    fn stubFor(self: *State, message: ChatMessage, index: usize) ![]const u8 {
+116	        while (self.stubs.items.len <= index) try self.stubs.append(self.turn_arena, null);
+117	        if (self.stubs.items[index]) |stub| return stub;
+118	
+119	        const content = message.content orelse "";
+120	        const tool_name = message.tool_name orelse "tool";
+121	        const stub = if (try self.handleFor(message)) |handle|
+122	            try std.fmt.allocPrint(
+123	                self.turn_arena,
+124	                "<tool_result_handle>{s}</tool_result_handle>\n{s} result ({d} bytes) cleared from the request to save context; use read_tool_result with this handle to read it again.",
+125	                .{ handle, tool_name, content.len },
+126	            )
+127	        else
+128	            try std.fmt.allocPrint(
+129	                self.turn_arena,
+130	                "{s} result ({d} bytes) cleared from the request to save context; run the tool again if you need it.",
+131	                .{ tool_name, content.len },
+132	            );
+133	        self.stubs.items[index] = stub;
+134	        return stub;
+135	    }
+136	
+137	    /// Reuses the handle of an already stored result; otherwise stores the
+138	    /// text the model saw so the stub stays retrievable. Storage failures
+139	    /// degrade to a handle-less stub instead of failing the turn.
+140	    fn handleFor(self: *State, message: ChatMessage) !?[]const u8 {
+141	        if (message.tool_result_memory) |memory| {
+142	            if (memory.output_handle) |handle| return handle;
+143	        }
+144	        const target = self.target orelse return null;
+145	        const content = message.content orelse return null;
+146	        return target.store(
+147	            self.turn_arena,
+148	            message.tool_call_id orelse "call",
+149	            message.tool_name orelse "tool",
+150	            content,
+151	        ) catch |err| switch (err) {
+152	            error.OutOfMemory => return error.OutOfMemory,
+153	            else => null,
+154	        };
+155	    }
+156	};
+157	
+158	fn startsStep(message: ChatMessage) bool {
+159	    return message.role == .assistant and message.tool_calls.len > 0;
+160	}
+161	
+162	fn testStep(alloc: Allocator, list: *std.ArrayList(ChatMessage), step: usize) !void {
+163	    const call_id = try std.fmt.allocPrint(alloc, "call-{d}", .{step});
+164	    const calls = try alloc.alloc(types.ToolCall, 1);
+165	    calls[0] = .{ .id = call_id, .name = "read_file", .arguments_json = "{}" };
+166	    try list.append(alloc, .{ .role = .assistant, .content = "", .tool_calls = calls });
+167	    try list.append(alloc, .{
+168	        .role = .tool,
+169	        .content = try std.fmt.allocPrint(alloc, "output of step {d}", .{step}),
+170	        .tool_call_id = call_id,
+171	        .tool_name = "read_file",
+172	    });
+173	}
+174	
+175	fn handleIn(stub: []const u8) []const u8 {
+176	    const start = std.mem.indexOf(u8, stub, "<tool_result_handle>").? + "<tool_result_handle>".len;
+177	    const end = std.mem.indexOfPos(u8, stub, start, "</tool_result_handle>").?;
+178	    return stub[start..end];
+179	}
+180	
+181	test "view keeps the suffix verbatim below the threshold" {
+182	    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+183	    defer arena_state.deinit();
+184	    const arena = arena_state.allocator();
+185	    var suffix: std.ArrayList(ChatMessage) = .empty;
+186	    var state = State.init(arena, 2, 1024, null);
+187	    for (1..8) |step| try testStep(arena, &suffix, step);
+188	    const same = try state.view(arena, suffix.items, 0);
+189	    try std.testing.expectEqual(suffix.items.ptr, same.ptr);
+190	    try std.testing.expectEqual(@as(usize, 0), state.evicted_before);
+191	}
+192	
+193	test "view sweeps all but the newest steps once the threshold fills" {
+194	    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+195	    defer arena_state.deinit();
+196	    const arena = arena_state.allocator();
+197	    var tmp = std.testing.tmpDir(.{});
+198	    defer tmp.cleanup();
+199	    const dir = try io_mod.dirRealpathAlloc(arena, tmp.dir, ".");
+200	
+201	    var suffix: std.ArrayList(ChatMessage) = .empty;
+202	    // Each test result is 16 bytes, so two evictable steps reach the threshold.
+203	    var state = State.init(arena, 2, 32, .{ .legacy_dir = dir });
+204	    for (1..5) |step| try testStep(arena, &suffix, step);
+205	    const projected = try state.view(arena, suffix.items, 0);
+206	    // Steps 1 and 2 are evicted; 3 and 4 stay verbatim.
+207	    try std.testing.expectEqual(@as(usize, 4), state.evicted_before);
+208	    try std.testing.expect(std.mem.startsWith(u8, handleIn(projected[1].content.?), "result-read_file-"));
+209	    try std.testing.expect(std.mem.startsWith(u8, handleIn(projected[3].content.?), "result-read_file-"));
+210	    try std.testing.expectEqualStrings("output of step 3", projected[5].content.?);
+211	    try std.testing.expectEqualStrings("output of step 4", projected[7].content.?);
+212	    // The canonical suffix is untouched and the stored file holds the model text.
+213	    try std.testing.expectEqualStrings("output of step 1", suffix.items[1].content.?);
+214	    const stored = try result_store.readByRange(arena, dir, handleIn(projected[1].content.?), 0, 64);
+215	    try std.testing.expect(std.mem.indexOf(u8, stored, "\noutput of step 1\n") != null);
+216	
+217	    // A fifth step leaves only step 3 evictable, below the threshold: the
+218	    // boundary holds and the stub text is reused.
+219	    try testStep(arena, &suffix, 5);
+220	    const again = try state.view(arena, suffix.items, 0);
+221	    try std.testing.expectEqual(@as(usize, 4), state.evicted_before);
+222	    try std.testing.expectEqual(projected[1].content.?.ptr, again[1].content.?.ptr);
+223	    try std.testing.expectEqualStrings("output of step 3", again[5].content.?);
+224	
+225	    // The sixth step refills the threshold: steps 3 and 4 go too.
+226	    try testStep(arena, &suffix, 6);
+227	    const third = try state.view(arena, suffix.items, 0);
+228	    try std.testing.expectEqual(@as(usize, 8), state.evicted_before);
+229	    try std.testing.expect(std.mem.startsWith(u8, third[5].content.?, "<tool_result_handle>"));
+230	    try std.testing.expectEqualStrings("output of step 5", third[9].content.?);
+231	}
+232	
+233	test "view reuses an existing stored handle and degrades without storage" {
+234	    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+235	    defer arena_state.deinit();
+236	    const arena = arena_state.allocator();
+237	    var suffix: std.ArrayList(ChatMessage) = .empty;
+238	    var state = State.init(arena, 2, 32, null);
+239	    for (1..5) |step| try testStep(arena, &suffix, step);
+240	    suffix.items[1].tool_result_memory = .{ .output_handle = "result-read_file-aa-bb.txt" };
+241	    const projected = try state.view(arena, suffix.items, 0);
+242	    try std.testing.expectEqualStrings("result-read_file-aa-bb.txt", handleIn(projected[1].content.?));
+243	    try std.testing.expect(std.mem.startsWith(u8, projected[3].content.?, "read_file result (16 bytes) cleared"));
+244	}
+245	
+246	test "view skips the region compaction already cut from the request" {
+247	    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+248	    defer arena_state.deinit();
+249	    const arena = arena_state.allocator();
+250	    var suffix: std.ArrayList(ChatMessage) = .empty;
+251	    // Each test result is 16 bytes; steps 1 and 2 alone would fill the threshold.
+252	    var state = State.init(arena, 2, 32, null);
+253	    for (1..5) |step| try testStep(arena, &suffix, step);
+254	
+255	    // Compaction cut steps 1 and 2 (four messages), leaving nothing evictable.
+256	    const same = try state.view(arena, suffix.items, 4);
+257	    try std.testing.expectEqual(suffix.items.ptr, same.ptr);
+258	    try std.testing.expectEqual(@as(usize, 0), state.evicted_before);
+259	
+260	    // Two more steps refill the threshold behind the kept window: the sweep
+261	    // starts at the request start, so steps 3 and 4 go and 5 and 6 stay.
+262	    for (5..7) |step| try testStep(arena, &suffix, step);
+263	    const projected = try state.view(arena, suffix.items, 4);
+264	    try std.testing.expectEqual(@as(usize, 8), state.evicted_before);
+265	    try std.testing.expect(std.mem.indexOf(u8, projected[5].content.?, "cleared from the request") != null);
+266	    try std.testing.expectEqualStrings("output of step 5", projected[9].content.?);
+267	}
+</content>

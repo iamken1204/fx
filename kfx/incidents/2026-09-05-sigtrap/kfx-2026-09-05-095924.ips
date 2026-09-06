@@ -1,0 +1,130 @@
+{"app_name":"kfx","timestamp":"2026-09-05 09:59:24.00 +0800","app_version":"","slice_uuid":"4b28d42b-b564-37f5-9840-73a9bcb0bb05","build_version":"","platform":1,"share_with_app_devs":1,"is_first_party":1,"bug_type":"309","os_version":"macOS 26.5.1 (25F80)","roots_installed":0,"incident_id":"BF93926C-76FA-47C8-A1FD-07EBC7DA9417","name":"kfx"}
+{
+  "uptime" : 1000000,
+  "procRole" : "Unspecified",
+  "version" : 2,
+  "userID" : 501,
+  "deployVersion" : 210,
+  "modelCode" : "Mac16,10",
+  "coalitionID" : 31555,
+  "osVersion" : {
+    "train" : "macOS 26.5.1",
+    "build" : "25F80",
+    "releaseType" : "User"
+  },
+  "captureTime" : "2026-09-05 09:59:20.8528 +0800",
+  "codeSigningMonitor" : 2,
+  "incident" : "BF93926C-76FA-47C8-A1FD-07EBC7DA9417",
+  "pid" : 68738,
+  "translated" : false,
+  "cpuType" : "ARM-64",
+  "procLaunch" : "2026-09-05 09:56:39.8398 +0800",
+  "procStartAbsTime" : 26147009909155,
+  "procExitAbsTime" : 26150875162129,
+  "procName" : "kfx",
+  "procPath" : "\/Users\/USER\/*\/kfx",
+  "parentProc" : "fish",
+  "parentPid" : 72360,
+  "coalitionName" : "com.mitchellh.ghostty",
+  "crashReporterKey" : "82DDC189-863B-ECED-796E-9A938D6ACF0A",
+  "appleIntelligenceStatus" : {"state":"available"},
+  "developerMode" : 1,
+  "responsiblePid" : 34222,
+  "responsibleProc" : "ghostty",
+  "codeSigningID" : "fx",
+  "codeSigningTeamID" : "",
+  "codeSigningFlags" : 570556929,
+  "codeSigningValidationCategory" : 10,
+  "codeSigningTrustLevel" : 4294967295,
+  "codeSigningAuxiliaryInfo" : 0,
+  "instructionByteStream" : {"beforePC":"\/w9f1ugDBKr0V7+p1AAA0JT2JJH1xDTQteIVkbQGAPmoHgD59FfBqA==","atPC":"IAAg1Ij5\/1QfHUjyCBs2kAixJJEIAUC5AAlCeuknnxo\/AQBxKQCAUg=="},
+  "bootSessionUUID" : "3668FB9B-D7BD-4D38-87A5-37EB67150BDA",
+  "sip" : "enabled",
+  "exception" : {"codes":"0x0000000000000001, 0x00000001884f1990","rawCodes":[1,6581852560],"type":"EXC_BREAKPOINT","signal":"SIGTRAP"},
+  "termination" : {"flags":0,"code":5,"namespace":"SIGNAL","indicator":"Trace\/BPT trap: 5","byProc":"exc handler","byPid":68738},
+  "os_fault" : {"process":"kfx"},
+  "asi" : {"libsystem_malloc.dylib":["BUG IN CLIENT OF LIBMALLOC: memory corruption of free block","Abort Cause 51217153152"]},
+  "extMods" : {"caller":{"thread_create":0,"thread_set_state":0,"task_for_pid":0},"system":{"thread_create":0,"thread_set_state":0,"task_for_pid":0},"targeted":{"thread_create":0,"thread_set_state":0,"task_for_pid":0},"warnings":0},
+  "faultingThread" : 12,
+  "threads" : [{"id":29974558,"threadState":{"x":[{"value":4},{"value":0},{"value":8},{"value":8},{"value":6170860080},{"value":4300890660,"symbolLocation":3517144,"symbol":"main"},{"value":0},{"value":18446726482597246976},{"value":8},{"value":0},{"value":0},{"value":1000000000},{"value":0},{"value":285739},{"value":2},{"value":2},{"value":230},{"value":8420634272},{"value":0},{"value":6170848656},{"value":8},{"value":1},{"value":6170849616},{"value":0},{"value":0},{"value":4297371936},{"value":6170873376},{"value":41963},{"value":6170901208}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4304408324},"cpsr":{"value":1610612736},"fp":{"value":6171047232},"sp":{"value":6170847120},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583559928},"far":{"value":0}},"queue":"com.apple.main-thread","frames":[{"imageOffset":38648,"symbol":"poll","symbolLocation":8,"imageIndex":1},{"imageOffset":8572676,"symbol":"main","symbolLocation":7034808,"imageIndex":0}]},{"id":29974568,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":1},{"value":100000000},{"value":0},{"value":51220230576},{"value":32},{"value":18446726482597246976},{"value":100000000},{"value":0},{"value":100000000},{"value":18446744073709551614},{"value":926180662},{"value":1953915999},{"value":1953915999},{"value":1748389188},{"value":544},{"value":51213910016},{"value":0},{"value":51191535056},{"value":6239241520},{"value":1},{"value":0},{"value":51191535056},{"value":6239242938},{"value":4306476360,"symbolLocation":296,"symbol":"_MergedGlobals.7251"},{"value":12},{"value":0},{"value":51209715058}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":0},"fp":{"value":6239481824},"sp":{"value":6239241440},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974572,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":123},{"value":0},{"value":0},{"value":40},{"value":0},{"value":18446726482597246976},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":921344880272425152},{"value":921327285938895128},{"value":212992},{"value":47},{"value":544},{"value":54012449048},{"value":0},{"value":6170859040},{"value":4304784880},{"value":123},{"value":0},{"value":6289960256},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":1073741824},"fp":{"value":6289960928},"sp":{"value":6289960096},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974573,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":132},{"value":0},{"value":0},{"value":40},{"value":0},{"value":18446726482597246976},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":1007407563798692032},{"value":1007389969465162008},{"value":212992},{"value":47},{"value":544},{"value":67368743192},{"value":0},{"value":6170859040},{"value":4304784880},{"value":132},{"value":0},{"value":6306786624},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":1073741824},"fp":{"value":6306787296},"sp":{"value":6306786464},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974574,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":132},{"value":0},{"value":0},{"value":4304761448,"symbolLocation":7387932,"symbol":"main"},{"value":1},{"value":0},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":64606390571970651},{"value":64588796238440693},{"value":208896},{"value":41},{"value":544},{"value":61596676341},{"value":0},{"value":6170859040},{"value":4304784880},{"value":132},{"value":0},{"value":6323612992},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":1073741824},"fp":{"value":6323613664},"sp":{"value":6323612832},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974575,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":132},{"value":0},{"value":0},{"value":4304761448,"symbolLocation":7387932,"symbol":"main"},{"value":0},{"value":18446726482597246976},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":361238062056964912},{"value":361220467723434728},{"value":98304},{"value":59},{"value":544},{"value":889299688},{"value":0},{"value":6170859040},{"value":4304784880},{"value":132},{"value":0},{"value":6340439360},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":1073741824},"fp":{"value":6340440032},"sp":{"value":6340439200},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974576,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":132},{"value":0},{"value":0},{"value":4304761448,"symbolLocation":7387932,"symbol":"main"},{"value":1},{"value":0},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":148021127980400836},{"value":148003533646870636},{"value":409600},{"value":23},{"value":544},{"value":3708215404},{"value":0},{"value":6170859040},{"value":4304784880},{"value":132},{"value":0},{"value":6357265728},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":2147483648},"fp":{"value":6357266400},"sp":{"value":6357265568},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974584,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":132},{"value":0},{"value":0},{"value":4304761448,"symbolLocation":7387932,"symbol":"main"},{"value":1},{"value":6273117024},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":361308439391081108},{"value":361290845057550732},{"value":102400},{"value":59},{"value":544},{"value":956416396},{"value":0},{"value":6170859040},{"value":4304784880},{"value":132},{"value":0},{"value":6273133888},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":1073741824},"fp":{"value":6273134560},"sp":{"value":6273133728},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974585,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":132},{"value":0},{"value":0},{"value":4304761448,"symbolLocation":7387932,"symbol":"main"},{"value":1},{"value":6390901600},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":148003533646870636},{"value":147985939313341316},{"value":407552},{"value":23},{"value":544},{"value":3691436932},{"value":0},{"value":6170859040},{"value":4304784880},{"value":132},{"value":0},{"value":6390918464},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":1073741824},"fp":{"value":6390919136},"sp":{"value":6390918304},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974586,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":132},{"value":0},{"value":0},{"value":4304761448,"symbolLocation":7387932,"symbol":"main"},{"value":0},{"value":0},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":361220467723434728},{"value":361203049483563656},{"value":96256},{"value":59},{"value":544},{"value":872688264},{"value":0},{"value":6170859040},{"value":4304784880},{"value":132},{"value":0},{"value":6407744832},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":1073741824},"fp":{"value":6407745504},"sp":{"value":6407744672},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974587,"frames":[{"imageOffset":60568,"symbol":"__ulock_wait2","symbolLocation":8,"imageIndex":1},{"imageOffset":1577676,"symbol":"main","symbolLocation":39808,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}],"threadState":{"x":[{"value":18446744073709551612},{"value":0},{"value":132},{"value":0},{"value":0},{"value":4304761448,"symbolLocation":7387932,"symbol":"main"},{"value":0},{"value":0},{"value":0},{"value":1},{"value":65535},{"value":0},{"value":361290845057550732},{"value":361273250724021040},{"value":100352},{"value":59},{"value":544},{"value":939637552},{"value":0},{"value":6170859040},{"value":4304784880},{"value":132},{"value":0},{"value":6424571200},{"value":1},{"value":2},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4297413324},"cpsr":{"value":1073741824},"fp":{"value":6424571872},"sp":{"value":6424571040},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583581848},"far":{"value":0}}},{"id":29974812,"frames":[],"threadState":{"x":[{"value":6172176384},{"value":4879},{"value":6171639808},{"value":0},{"value":409602},{"value":18446744073709551615},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0}],"flavor":"ARM_THREAD_STATE64","lr":{"value":0},"cpsr":{"value":0},"fp":{"value":0},"sp":{"value":6172176384},"esr":{"value":1442840704,"description":"(Syscall)"},"pc":{"value":6583782408},"far":{"value":0}}},{"triggered":true,"id":29979610,"threadState":{"x":[{"value":4312121344},{"value":4312123008},{"value":0},{"value":4312145440},{"value":51217153152},{"value":0},{"value":18446744072631617535},{"value":18446726482597246976},{"value":51217153152},{"value":0},{"value":292875265175315400},{"value":7023470491969218915},{"value":6427594752726425955},{"value":14206370012746005861},{"value":4312434376},{"value":51217137664},{"value":12914233956},{"value":18446744072367376383},{"value":0},{"value":29},{"value":3490},{"value":4305610720},{"value":51223332149},{"value":3490},{"value":4305610720},{"value":51223332120},{"value":3490},{"value":5},{"value":51217457176}],"flavor":"ARM_THREAD_STATE64","lr":{"value":4304761308},"cpsr":{"value":805306368},"fp":{"value":6188790768},"sp":{"value":6188790672},"esr":{"value":4060086273,"description":"(Breakpoint) brk 1"},"pc":{"value":6581852560,"matchesCrashFrame":1},"far":{"value":0}},"frames":[{"imageOffset":203152,"symbol":"_xzm_xzone_malloc_freelist_outlined","symbolLocation":856,"imageIndex":4},{"imageOffset":8925660,"symbol":"main","symbolLocation":7387792,"imageIndex":0},{"imageOffset":7196,"symbol":"thread_start","symbolLocation":8,"imageIndex":3}]}],
+  "usedImages" : [
+  {
+    "source" : "P",
+    "arch" : "arm64",
+    "base" : 4295835648,
+    "size" : 9620618,
+    "uuid" : "4b28d42b-b564-37f5-9840-73a9bcb0bb05",
+    "path" : "\/Users\/USER\/*\/kfx",
+    "name" : "kfx"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6583521280,
+    "size" : 250544,
+    "uuid" : "cc1cf985-bc65-3725-809f-4c1e36b8f4ba",
+    "path" : "\/usr\/lib\/system\/libsystem_kernel.dylib",
+    "name" : "libsystem_kernel.dylib"
+  },
+  {
+    "size" : 0,
+    "source" : "A",
+    "base" : 0,
+    "uuid" : "00000000-0000-0000-0000-000000000000"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6583775232,
+    "size" : 52028,
+    "uuid" : "4f33683c-18c8-39a1-800b-2e3bd43bcc13",
+    "path" : "\/usr\/lib\/system\/libsystem_pthread.dylib",
+    "name" : "libsystem_pthread.dylib"
+  },
+  {
+    "source" : "P",
+    "arch" : "arm64e",
+    "base" : 6581649408,
+    "size" : 328152,
+    "uuid" : "5fae4807-4d2b-3a95-a63a-dd96d3da11b4",
+    "path" : "\/usr\/lib\/system\/libsystem_malloc.dylib",
+    "name" : "libsystem_malloc.dylib"
+  }
+],
+  "sharedCache" : {
+  "base" : 6578618368,
+  "size" : 5990596608,
+  "uuid" : "ff7119a7-f64d-305d-8135-7e6eb1c207d1"
+},
+  "vmSummary" : "ReadOnly portion of Libraries: Total=870.1M resident=0K(0%) swapped_out_or_unallocated=870.1M(100%)\nWritable regions: Total=317.8M written=497K(0%) resident=497K(0%) swapped_out=0K(0%) unallocated=317.3M(100%)\n\n                                VIRTUAL   REGION \nREGION TYPE                        SIZE    COUNT (non-coalesced) \n===========                     =======  ======= \nActivity Tracing                   256K        1 \nKernel Alloc Once                   32K        1 \nMALLOC                            59.4M       20 \nMALLOC guard page                 3808K        4 \nMemory Tag 22                     64.0M        1 \nSTACK GUARD                        208K       13 \nStack                            192.9M       13 \nVM_ALLOCATE                          4K        1 \n__AUTH                            1321K      148 \n__AUTH_CONST                      17.7M      340 \n__CTF                               824        1 \n__DATA                            5201K      297 \n__DATA_CONST                      16.3M      339 \n__DATA_DIRTY                      1320K      284 \n__FONT_DATA                        2352        1 \n__LINKEDIT                       573.0M        2 \n__OBJC_RO                         79.1M        1 \n__OBJC_RW                         2599K        1 \n__TEXT                           297.1M      348 \n__TPRO_CONST                       128K        2 \nmapped file                        312K        5 \npage table in kernel               497K        1 \nshared memory                       80K        4 \n===========                     =======  ======= \nTOTAL                              1.3G     1828 \n",
+  "legacyInfo" : {
+  "threadTriggered" : {
+
+  }
+},
+  "logWritingSignature" : "ff42a4865cc20624fcd67197de0cb3385dfeadb8",
+  "bug_type" : "309",
+  "roots_installed" : 0,
+  "trmStatus" : 8192,
+  "trialInfo" : {
+  "rollouts" : [
+    {
+      "rolloutId" : "6785b622614dbd65bffd025a",
+      "factorPackIds" : [
+
+      ],
+      "deploymentId" : 240000017
+    },
+    {
+      "rolloutId" : "639124e81d92412bfb4880b3",
+      "factorPackIds" : [
+
+      ],
+      "deploymentId" : 240000012
+    }
+  ],
+  "experiments" : [
+
+  ]
+}
+}

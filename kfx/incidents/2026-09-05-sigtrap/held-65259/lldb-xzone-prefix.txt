@@ -1,0 +1,97 @@
+(lldb) process attach --pid 65259
+Process 65259 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x000000018868d308 libsystem_kernel.dylib`__semwait_signal + 8
+libsystem_kernel.dylib`__semwait_signal:
+->  0x18868d308 <+8>:  b.lo   0x18868d328               ; <+40>
+    0x18868d30c <+12>: pacibsp 
+    0x18868d310 <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x18868d314 <+20>: mov    x29, sp
+Target 0: (kfx) stopped.
+Executable binary set to "/Users/kettan/.local/bin/kfx".
+Architecture set to: arm64-apple-macosx-.
+(lldb) disassemble -s 0x1884f1638 -e 0x1884f177c
+libsystem_malloc.dylib`_xzm_xzone_malloc_freelist_outlined:
+    0x1884f1638 <+0>:   pacibsp 
+    0x1884f163c <+4>:   sub    sp, sp, #0x70
+    0x1884f1640 <+8>:   stp    x28, x27, [sp, #0x10]
+    0x1884f1644 <+12>:  stp    x26, x25, [sp, #0x20]
+    0x1884f1648 <+16>:  stp    x24, x23, [sp, #0x30]
+    0x1884f164c <+20>:  stp    x22, x21, [sp, #0x40]
+    0x1884f1650 <+24>:  stp    x20, x19, [sp, #0x50]
+    0x1884f1654 <+28>:  stp    x29, x30, [sp, #0x60]
+    0x1884f1658 <+32>:  add    x29, sp, #0x60
+    0x1884f165c <+36>:  cbnz   x4, 0x1884f196c           ; <+820>
+    0x1884f1660 <+40>:  mov    x20, x5
+    0x1884f1664 <+44>:  mov    x23, x3
+    0x1884f1668 <+48>:  mov    x24, x2
+    0x1884f166c <+52>:  mov    x19, x1
+    0x1884f1670 <+56>:  mov    x21, x0
+    0x1884f1674 <+60>:  mov    w25, #0x0                 ; =0 
+    0x1884f1678 <+64>:  ldr    x26, [x1, #0x30]
+    0x1884f167c <+68>:  ldrb   w8, [x1, #0x57]
+    0x1884f1680 <+72>:  str    w8, [sp]
+    0x1884f1684 <+76>:  ldr    x8, [x3]
+    0x1884f1688 <+80>:  str    xzr, [sp, #0x8]
+    0x1884f168c <+84>:  strb   wzr, [sp, #0x7]
+    0x1884f1690 <+88>:  mov    x28, x8
+    0x1884f1694 <+92>:  tbnz   w28, #0x0, 0x1884f16a8    ; <+112>
+    0x1884f1698 <+96>:  tbz    w28, #0x1, 0x1884f1700    ; <+200>
+    0x1884f169c <+100>: mov    x0, x21
+    0x1884f16a0 <+104>: bl     0x1884f1aa0               ; _xzm_fork_lock_wait
+    0x1884f16a4 <+108>: b      0x1884f16e4               ; <+172>
+    0x1884f16a8 <+112>: tbnz   w28, #0x1, 0x1884f16c8    ; <+144>
+    0x1884f16ac <+116>: orr    x9, x28, #0x2
+    0x1884f16b0 <+120>: mov    x8, x28
+    0x1884f16b4 <+124>: cas    x8, x9, [x23]
+    0x1884f16b8 <+128>: cmp    x8, x28
+    0x1884f16bc <+132>: mov    x28, x8
+    0x1884f16c0 <+136>: b.ne   0x1884f1694               ; <+92>
+    0x1884f16c4 <+140>: orr    x28, x8, #0x2
+    0x1884f16c8 <+144>: mov    w2, w28
+    0x1884f16cc <+148>: mov    w0, #0x2                  ; =2 
+    0x1884f16d0 <+152>: movk   w0, #0x105, lsl #16
+    0x1884f16d4 <+156>: mov    x1, x23
+    0x1884f16d8 <+160>: mov    w3, #0x0                  ; =0 
+    0x1884f16dc <+164>: bl     0x18850277c               ; symbol stub for: __ulock_wait
+    0x1884f16e0 <+168>: tbnz   w0, #0x1f, 0x1884f16ec    ; <+180>
+    0x1884f16e4 <+172>: ldr    x28, [x23]
+    0x1884f16e8 <+176>: b      0x1884f1694               ; <+92>
+    0x1884f16ec <+180>: cmn    w0, #0xe
+    0x1884f16f0 <+184>: b.eq   0x1884f16e4               ; <+172>
+    0x1884f16f4 <+188>: cmn    w0, #0x4
+    0x1884f16f8 <+192>: b.ne   0x1884f1a78               ; <+1088>
+    0x1884f16fc <+196>: b      0x1884f16e4               ; <+172>
+    0x1884f1700 <+200>: ubfx   x4, x28, #2, #47
+    0x1884f1704 <+204>: str    x4, [sp, #0x8]
+    0x1884f1708 <+208>: cbz    x4, 0x1884f1734           ; <+252>
+    0x1884f170c <+212>: cmp    x26, #0x1, lsl #12        ; =0x1000 
+    0x1884f1710 <+216>: cset   w5, hi
+    0x1884f1714 <+220>: add    x6, sp, #0x7
+    0x1884f1718 <+224>: mov    x0, x21
+    0x1884f171c <+228>: mov    x1, x19
+    0x1884f1720 <+232>: mov    x2, x24
+    0x1884f1724 <+236>: mov    x3, #0x0                  ; =0 
+    0x1884f1728 <+240>: mov    x7, #0x0                  ; =0 
+    0x1884f172c <+244>: bl     0x1884f1b18               ; _xzm_xzone_malloc_from_freelist_chunk
+    0x1884f1730 <+248>: cbnz   x0, 0x1884f17d4           ; <+412>
+    0x1884f1734 <+252>: cbnz   w25, 0x1884f1740          ; <+264>
+    0x1884f1738 <+256>: bl     0x1884f1f04               ; _malloc_ulock_self_owner_value
+    0x1884f173c <+260>: mov    x25, x0
+    0x1884f1740 <+264>: lsl    w8, w25, #2
+    0x1884f1744 <+268>: and    x27, x28, #0xfffe000000000000
+    0x1884f1748 <+272>: orr    x8, x27, x8
+    0x1884f174c <+276>: orr    x9, x8, #0x1
+    0x1884f1750 <+280>: mov    x8, x28
+    0x1884f1754 <+284>: cas    x8, x9, [x23]
+    0x1884f1758 <+288>: cmp    x8, x28
+    0x1884f175c <+292>: b.ne   0x1884f1690               ; <+88>
+    0x1884f1760 <+296>: add    x4, sp, #0x8
+    0x1884f1764 <+300>: add    x5, sp, #0x7
+    0x1884f1768 <+304>: mov    x0, x21
+    0x1884f176c <+308>: mov    x1, x19
+    0x1884f1770 <+312>: mov    x2, x24
+    0x1884f1774 <+316>: mov    x3, #0x0                  ; =0 
+    0x1884f1778 <+320>: bl     0x1884f1f14               ; _xzm_xzone_find_and_malloc_from_freelist_chunk
+(lldb) detach
+Process 65259 detached

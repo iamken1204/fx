@@ -1,0 +1,10 @@
+[grep] 1 matches for result_eviction
+   src/main.zig:4184-     _ = @import("core/agent/runtime/assistant_stream.zig");
+   src/main.zig:4185-     _ = @import("core/agent/runtime/execution_memory.zig");
+   src/main.zig:4186-     _ = @import("core/agent/runtime/tool_admission.zig");
+   src/main.zig:4187-     _ = @import("core/agent/runtime/prompt_context.zig");
+ - src/main.zig:4188:     _ = @import("core/agent/runtime/result_eviction.zig");
+   src/main.zig:4189-     _ = @import("core/app/app_agent_runtime.zig");
+   src/main.zig:4190-     _ = @import("core/app/app_auth_runtime.zig");
+   src/main.zig:4191-     _ = auth_runtime;
+   src/main.zig:4192-     _ = @import("core/auth/auth_transition.zig");

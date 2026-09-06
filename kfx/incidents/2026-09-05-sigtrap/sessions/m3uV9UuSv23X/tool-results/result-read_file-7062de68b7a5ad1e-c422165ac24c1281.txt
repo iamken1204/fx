@@ -1,0 +1,254 @@
+<path>build.zig</path>
+<content>
+1  	const std = @import("std");
+2  	
+3  	const UpdateChannel = enum { stable, dev };
+4  	
+5  	const WasmSurface = enum {
+6  	    none,
+7  	    core,
+8  	    term,
+9  	};
+10 	
+11 	const PgsoArtifact = enum {
+12 	    fx,
+13 	    file_index,
+14 	    ui_activity,
+15 	    approval_review,
+16 	};
+17 	
+18 	const NapiSurface = enum {
+19 	    none,
+20 	    core,
+21 	};
+22 	
+23 	pub fn build(b: *std.Build) void {
+24 	    const target = b.standardTargetOptions(.{});
+25 	    const optimize = b.standardOptimizeOption(.{});
+26 	    const pgso_artifact = b.option(
+27 	        PgsoArtifact,
+28 	        "pgso-artifact",
+29 	        "Emit ReleaseSafe LLVM bitcode for one PGO/PGSO artifact",
+30 	    );
+31 	    const wasm_surface = b.option(
+32 	        WasmSurface,
+33 	        "wasm-surface",
+34 	        "Build a WASI WebAssembly surface for JavaScript hosts (core or term)",
+35 	    ) orelse .none;
+36 	    const napi_surface = b.option(
+37 	        NapiSurface,
+38 	        "napi-surface",
+39 	        "Build a Node-API addon surface (core)",
+40 	    ) orelse .none;
+41 	
+42 	    const git_commit = readGitCommit(b);
+43 	    const app_version = readAppVersion(b);
+44 	    const update_channel = b.option(UpdateChannel, "update-channel", "Build update channel (stable or dev)") orelse .stable;
+45 	
+46 	    const build_options = b.addOptions();
+47 	    build_options.addOption([]const u8, "git_commit", git_commit);
+48 	    build_options.addOption([]const u8, "app_version", app_version);
+49 	    build_options.addOption([]const u8, "update_channel", @tagName(update_channel));
+50 	    build_options.addOption(WasmSurface, "wasm_surface", .none);
+51 	
+52 	    const exe = b.addExecutable(.{
+53 	        .name = "fx",
+54 	        .root_module = b.createModule(.{
+55 	            .root_source_file = b.path("src/main.zig"),
+56 	            .target = target,
+57 	            .optimize = optimize,
+58 	            .link_libc = true,
+59 	            .stack_check = false,
+60 	            .stack_protector = false,
+61 	            .omit_frame_pointer = true,
+62 	            .unwind_tables = .none,
+63 	            .error_tracing = false,
+64 	            .strip = optimize != .Debug,
+65 	        }),
+66 	    });
+67 	    exe.root_module.addImport("build_options", build_options.createModule());
+68 	
+69 	    b.installArtifact(exe);
+70 	
+71 	    const run_cmd = b.addRunArtifact(exe);
+72 	    run_cmd.step.dependOn(b.getInstallStep());
+73 	    if (b.args) |args| {
+74 	        run_cmd.addArgs(args);
+75 	    }
+76 	
+77 	    const run_step = b.step("run", "Run fx");
+78 	    run_step.dependOn(&run_cmd.step);
+79 	
+80 	    const exe_tests = b.addTest(.{
+81 	        .root_module = exe.root_module,
+82 	    });
+83 	    const run_exe_tests = b.addRunArtifact(exe_tests);
+84 	    run_exe_tests.step.dependOn(b.getInstallStep());
+85 	    run_exe_tests.setEnvironmentVariable(
+86 	        "FX_TEST_PRODUCT_EXE",
+87 	        b.getInstallPath(.bin, "fx"),
+88 	    );
+89 	
+90 	    const test_step = b.step("test", "Run tests");
+91 	    test_step.dependOn(&run_exe_tests.step);
+92 	
+93 	    if (wasm_surface != .none) {
+94 	        addWasmArtifact(b, wasm_surface, git_commit, app_version, update_channel);
+95 	    }
+96 	    if (napi_surface != .none) {
+97 	        addNapiArtifact(b, napi_surface, target, git_commit, app_version, update_channel);
+98 	    }
+99 	
+100	    const mcp_test_exports = b.createModule(.{
+101	        .root_source_file = b.path("src/mcp_test_exports.zig"),
+102	        .target = target,
+103	        .optimize = optimize,
+104	        .link_libc = true,
+105	    });
+106	    mcp_test_exports.addImport("build_options", build_options.createModule());
+107	    const json_schema_corpus = b.addExecutable(.{
+108	        .name = "json-schema-corpus",
+109	        .root_module = b.createModule(.{
+110	            .root_source_file = b.path("tests/json-schema/corpus_runner.zig"),
+111	            .target = target,
+112	            .optimize = optimize,
+113	            .link_libc = true,
+114	        }),
+115	    });
+116	    json_schema_corpus.root_module.addImport(
+117	        "mcp_test_exports",
+118	        mcp_test_exports,
+119	    );
+120	    const run_json_schema_corpus = b.addRunArtifact(json_schema_corpus);
+121	    if (b.args) |args| run_json_schema_corpus.addArgs(args);
+122	    const json_schema_corpus_step = b.step(
+123	        "run-json-schema-corpus",
+124	        "Run the pinned JSON Schema Test Suite corpus",
+125	    );
+126	    json_schema_corpus_step.dependOn(&run_json_schema_corpus.step);
+127	
+128	    const mcp_dispatcher_e2e = b.addExecutable(.{
+129	        .name = "mcp-stdio-dispatcher-driver",
+130	        .root_module = b.createModule(.{
+131	            .root_source_file = b.path(
+132	                "tests/e2e/fixtures/mcp-stdio-dispatcher-driver.zig",
+133	            ),
+134	            .target = target,
+135	            .optimize = optimize,
+136	            .link_libc = true,
+137	        }),
+138	    });
+139	    mcp_dispatcher_e2e.root_module.addImport(
+140	        "mcp_test_exports",
+141	        mcp_test_exports,
+142	    );
+143	    const run_mcp_dispatcher_e2e = b.addRunArtifact(mcp_dispatcher_e2e);
+144	    if (b.args) |args| run_mcp_dispatcher_e2e.addArgs(args);
+145	    const mcp_dispatcher_e2e_step = b.step(
+146	        "run-mcp-stdio-dispatcher-e2e",
+147	        "Run the MCP stdio dispatcher E2E driver",
+148	    );
+149	    mcp_dispatcher_e2e_step.dependOn(&run_mcp_dispatcher_e2e.step);
+150	
+151	    // --- file_index search benchmark ---
+152	    const benchmark_exports_mod = b.createModule(.{
+153	        .root_source_file = b.path("src/benchmark_exports.zig"),
+154	        .target = target,
+155	        .optimize = optimize,
+156	        .link_libc = true,
+157	    });
+158	    const file_index_bench = b.addExecutable(.{
+159	        .name = "file-index-bench",
+160	        .root_module = b.createModule(.{
+161	            .root_source_file = b.path("benchmarks/file_index_bench.zig"),
+162	            .target = target,
+163	            .optimize = optimize,
+164	            .link_libc = true,
+165	        }),
+166	    });
+167	    file_index_bench.root_module.addImport("file_index", benchmark_exports_mod);
+168	    const install_bench = b.addInstallArtifact(file_index_bench, .{});
+169	    const bench_step = b.step("bench-file-index", "Build file_index search benchmark");
+170	    bench_step.dependOn(&install_bench.step);
+171	
+172	    const run_bench = b.addRunArtifact(file_index_bench);
+173	    run_bench.step.dependOn(&install_bench.step);
+174	    if (b.args) |args| run_bench.addArgs(args);
+175	    const run_bench_step = b.step("run-bench-file-index", "Build and run file_index search benchmark");
+176	    run_bench_step.dependOn(&run_bench.step);
+177	
+178	    // --- UI activity progress benchmark ---
+179	    const ui_activity_bench = b.addExecutable(.{
+180	        .name = "ui-activity-progress-bench",
+181	        .root_module = b.createModule(.{
+182	            .root_source_file = b.path("benchmarks/activity_progress.zig"),
+183	            .target = target,
+184	            .optimize = optimize,
+185	            .link_libc = true,
+186	        }),
+187	    });
+188	    ui_activity_bench.root_module.addImport(
+189	        "benchmark_exports",
+190	        benchmark_exports_mod,
+191	    );
+192	    const install_ui_activity_bench = b.addInstallArtifact(ui_activity_bench, .{});
+193	    const ui_activity_bench_step = b.step(
+194	        "bench-ui-activity",
+195	        "Build the UI activity progress benchmark",
+196	    );
+197	    ui_activity_bench_step.dependOn(&install_ui_activity_bench.step);
+198	
+199	    const run_ui_activity_bench = b.addRunArtifact(ui_activity_bench);
+200	    run_ui_activity_bench.step.dependOn(&install_ui_activity_bench.step);
+201	    const run_ui_activity_bench_step = b.step(
+202	        "run-bench-ui-activity",
+203	        "Build and run the UI activity progress benchmark",
+204	    );
+205	    run_ui_activity_bench_step.dependOn(&run_ui_activity_bench.step);
+206	
+207	    const ui_activity_bench_tests = b.addTest(.{
+208	        .root_module = b.createModule(.{
+209	            .root_source_file = b.path("benchmarks/activity_progress.zig"),
+210	            .target = target,
+211	            .optimize = optimize,
+212	        }),
+213	    });
+214	    ui_activity_bench_tests.root_module.addImport(
+215	        "benchmark_exports",
+216	        benchmark_exports_mod,
+217	    );
+218	    const run_ui_activity_bench_tests = b.addRunArtifact(ui_activity_bench_tests);
+219	    test_step.dependOn(&run_ui_activity_bench_tests.step);
+220	    const test_ui_activity_bench_step = b.step(
+221	        "test-ui-activity-benchmark",
+222	        "Run UI activity benchmark policy tests",
+223	    );
+224	    test_ui_activity_bench_step.dependOn(&run_ui_activity_bench_tests.step);
+225	
+226	    // --- file-diff approval review benchmark ---
+227	    const approval_review_bench = b.addExecutable(.{
+228	        .name = "approval-review-bench",
+229	        .root_module = b.createModule(.{
+230	            .root_source_file = b.path("benchmarks/approval_review.zig"),
+231	            .target = target,
+232	            .optimize = optimize,
+233	            .link_libc = true,
+234	        }),
+235	    });
+236	    approval_review_bench.root_module.addImport(
+237	        "benchmark_exports",
+238	        benchmark_exports_mod,
+239	    );
+240	    const install_approval_review_bench = b.addInstallArtifact(
+241	        approval_review_bench,
+242	        .{},
+243	    );
+244	    const approval_review_bench_step = b.step(
+245	        "bench-approval-review",
+246	        "Build the file-diff approval review benchmark",
+247	    );
+248	    approval_review_bench_step.dependOn(&install_approval_review_bench.step);
+249	
+250	    const run_approval_review_bench = b.addRunArtifact(approval_review_bench);
+... [showing 250 of 449 lines; use start_line/line_count to read more.]
+</content>

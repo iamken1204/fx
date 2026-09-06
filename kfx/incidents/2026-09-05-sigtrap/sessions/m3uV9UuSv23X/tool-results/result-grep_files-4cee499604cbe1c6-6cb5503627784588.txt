@@ -1,0 +1,19 @@
+[grep] 2 matches for compaction
+   tests/e2e/cli.test.ts:3888-         { models: [{
+   tests/e2e/cli.test.ts:3889-           id: FAKE_GATEWAY_MODEL,
+   tests/e2e/cli.test.ts:3890-           type: "language",
+   tests/e2e/cli.test.ts:3891-           tags: ["tool-use"],
+ - tests/e2e/cli.test.ts:3892:           // Keep the stdin transport cases below the separate compaction threshold.
+   tests/e2e/cli.test.ts:3893-           context_window: 2_000_000,
+   tests/e2e/cli.test.ts:3894-           max_tokens: 16_384,
+   tests/e2e/cli.test.ts:3895-         }] },
+   tests/e2e/cli.test.ts:3896-       );
+   tests/e2e/cli.test.ts:4260-         legacy.history = [{
+   tests/e2e/cli.test.ts:4261-           kind: "compacted_summary",
+   tests/e2e/cli.test.ts:4262-           summary: legacySummary,
+   tests/e2e/cli.test.ts:4263-           removed_turn_count: 12,
+ - tests/e2e/cli.test.ts:4264:           compaction_count: 1,
+   tests/e2e/cli.test.ts:4265-         }, {
+   tests/e2e/cli.test.ts:4266-           kind: "assistant",
+   tests/e2e/cli.test.ts:4267-           user: { text: "LEGACY_ORIGINAL_REQUEST", images: [] },
+   tests/e2e/cli.test.ts:4268-           assistant: "LEGACY_ORIGINAL_ANSWER",

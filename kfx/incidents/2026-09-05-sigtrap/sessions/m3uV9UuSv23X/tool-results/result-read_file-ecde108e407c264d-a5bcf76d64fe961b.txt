@@ -1,0 +1,259 @@
+<path>src/core/agent/runtime/orchestrator.zig</path>
+<content>
+5380	                arena,
+5381	                &within_turn_suffix,
+5382	                guidance,
+5383	            ),
+5384	            .none, .interrupt => {},
+5385	        }
+5386	        var ephemeral_overlay: std.ArrayList(ChatMessage) = .empty;
+5387	        if (skills.explicit) |section| {
+5388	            if (section.text.len > 0) try ephemeral_overlay.append(overlay_arena, .{ .role = .system, .content = section.text });
+5389	        }
+5390	        try deps.append_runtime_context(deps.ctx, overlay_arena, &ephemeral_overlay);
+5391	        var parent_turn_delivery = try appendPreparedParentTurnContext(
+5392	            deps,
+5393	            overlay_arena,
+5394	            &ephemeral_overlay,
+5395	        );
+5396	        const projected_suffix = try eviction.view(overlay_arena, within_turn_suffix.items, compacted_suffix_len);
+5397	        var provider_prompt = try build_provider_prompt_with_response_language_control(
+5398	            overlay_arena,
+5399	            stable_prefix.items,
+5400	            ephemeral_overlay.items,
+5401	            history_messages.items,
+5402	            current_user_effective,
+5403	            projected_suffix,
+5404	            config.origin,
+5405	            config.enforce_response_language,
+5406	            response_language_correction_attempted,
+5407	            active_compaction_handoff,
+5408	            active_compaction_history_tail,
+5409	            compacted_suffix_len,
+5410	        );
+5411	        var gateway_instructions = provider_prompt.instructions;
+5412	        var gateway_messages = provider_prompt.messages;
+5413	        const initial_decision_pending = recovery_strategy == .continue_after_confirmed_tool;
+5414	        last_gateway_message_count = gateway_instructions.items.len + gateway_messages.items.len +
+5415	            @intFromBool(initial_decision_pending);
+5416	        var current_user_message_index = provider_prompt.current_user_index;
+5417	        const response_language_hold_until_completion =
+5418	            response_language_context_conflicts(response_language_expectation, stable_prefix.items) or
+5419	            response_language_context_conflicts(response_language_expectation, ephemeral_overlay.items) or
+5420	            response_language_context_conflicts(response_language_expectation, history_messages.items) or
+5421	            response_language_context_conflicts(response_language_expectation, within_turn_suffix.items);
+5422	
+5423	        debug_trace.logf("agent", "step start step={d} limit={d} messages={d}", .{ current_step_index, config.agent_step_limit, gateway_instructions.items.len + gateway_messages.items.len });
+5424	        debug_trace.eventf("agent", "step_begin", step_ctx, "step_index={d} step_limit={d} gateway_messages={d}", .{ current_step_index, config.agent_step_limit, gateway_instructions.items.len + gateway_messages.items.len });
+5425	
+5426	        var stream_ctx = runtime_assistant_stream.StreamChunkContext{
+5427	            .hooks = deps,
+5428	            .flush_assistant_stream_per_content_chunk = deps.flush_assistant_stream_per_content_chunk,
+5429	            .semantic_presentation = semantic_presentation,
+5430	            .token_progress = &summary_accumulator,
+5431	            .turn_id = turn_id,
+5432	            .step_id = step_ctx.step_id,
+5433	            .response_language_expected = response_language_expectation,
+5434	            .response_language_hold_until_completion = response_language_hold_until_completion,
+5435	            .provisional_statuses = .{
+5436	                .presentation_group_id = presentation_group_id,
+5437	            },
+5438	        };
+5439	        defer stream_ctx.deinit();
+5440	
+5441	        if (restore_recovery_source) {
+5442	            const checkpoint = job.recovery_checkpoint.?;
+5443	            try stream_ctx.restoreRecoverySource(
+5444	                checkpoint.assistant_source,
+5445	                job.recovery_source_already_presented,
+5446	            );
+5447	            try stream_ctx.beginRecoveryAttempt();
+5448	            restore_recovery_source = false;
+5449	        }
+5450	
+5451	        const advertised_dynamic_tool_names = selected_dynamic_tool_names.items;
+5452	        var stream_result: runtime_gateway_step.StreamResult = undefined;
+5453	        var stream_result_set = false;
+5454	        var gateway_model: []const u8 = job.model;
+5455	        var successful_gateway_model: []const u8 = "";
+5456	        var successful_request_cost: ?runtime_prompt_context.RequestCost = null;
+5457	        var successful_vision_route: runtime_vision_contracts.VisionRoute = .native_images;
+5458	        var successful_vision_mode: runtime_gateway_step.VisionToolMode = .unavailable;
+5459	        var reset_stream_for_next_attempt = false;
+5460	        var auth_retry_used = false;
+5461	        var assistant_prefill_recovery_used = false;
+5462	        var skip_next_preflight_refresh = false;
+5463	        var context_overflow_recovery: ContextOverflowRecoveryState = .ready;
+5464	        var recovery_has_unexecuted_tool_start = false;
+5465	        var successful_recovery_strategy: ?model_response_recovery.Strategy = null;
+5466	        defer {
+5467	            if (recovery_has_unexecuted_tool_start) {
+5468	                const settlement = if (config.cancel_flag.load(.seq_cst))
+5469	                    stream_ctx.provisional_statuses.finishTrackedCancelled(
+5470	                        deps,
+5471	                        stream_ctx.alloc,
+5472	                        arena,
+5473	                        turn_id,
+5474	                    )
+5475	                else
+5476	                    stream_ctx.provisional_statuses.finishUnmatchedRecoveryStarts(
+5477	                        deps,
+5478	                        stream_ctx.alloc,
+5479	                        arena,
+5480	                        turn_id,
+5481	                        &.{},
+5482	                    );
+5483	                settlement catch |err| {
+5484	                    debug_trace.logf(
+5485	                        "agent",
+5486	                        "failed to settle interrupted tool starts err={s}",
+5487	                        .{@errorName(err)},
+5488	                    );
+5489	                };
+5490	            }
+5491	        }
+5492	
+5493	        while (true) {
+5494	            // Provider scratch (request body, HTTP client, SSE parse trees)
+5495	            // lives only for this attempt; the survivors are copied into the
+5496	            // turn arena before `break`.
+5497	            var attempt_arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+5498	            defer attempt_arena_state.deinit();
+5499	            const attempt_alloc = attempt_arena_state.allocator();
+5500	            if (reset_stream_for_next_attempt) {
+5501	                try stream_ctx.beginRecoveryAttempt();
+5502	                reset_stream_for_next_attempt = false;
+5503	            }
+5504	
+5505	            gateway_model = job.model;
+5506	            if (recoveryPauseRequested(config)) {
+5507	                recovery_strategy = .pause;
+5508	                try persistRecoveryCheckpoint(
+5509	                    deps,
+5510	                    finalization,
+5511	                    job,
+5512	                    within_turn_suffix.items,
+5513	                    try recoveryCheckpointAssistantSource(
+5514	                        arena,
+5515	                        stop_state,
+5516	                        stream_ctx.interruption_source_or(""),
+5517	                    ),
+5518	                    gateway_model,
+5519	                    selected_fast_mode,
+5520	                    route_fast_mode,
+5521	                    semantic_limit,
+5522	                    semantic_attempt,
+5523	                    false,
+5524	                    recovery_cause,
+5525	                    recovery_strategy,
+5526	                    preserved_tool_evidence,
+5527	                    step_ctx,
+5528	                );
+5529	                try finishRecoveryPaused(
+5530	                    deps,
+5531	                    finalization,
+5532	                    &finish_trace,
+5533	                    recovery_cause,
+5534	                    semantic_attempt,
+5535	                    semantic_limit,
+5536	                    pausedRequiredAction(preserved_tool_evidence),
+5537	                    latest_recovery_diagnostic,
+5538	                );
+5539	                pending_auto_retry_status = null;
+5540	                return;
+5541	            }
+5542	            if (semantic_attempt >= semantic_limit) {
+5543	                recovery_cause = .request_limit_reached;
+5544	                recovery_strategy = .pause;
+5545	                try persistRecoveryCheckpoint(
+5546	                    deps,
+5547	                    finalization,
+5548	                    job,
+5549	                    within_turn_suffix.items,
+5550	                    try recoveryCheckpointAssistantSource(
+5551	                        arena,
+5552	                        stop_state,
+5553	                        stream_ctx.interruption_source_or(""),
+5554	                    ),
+5555	                    gateway_model,
+5556	                    selected_fast_mode,
+5557	                    route_fast_mode,
+5558	                    semantic_limit,
+5559	                    semantic_attempt,
+5560	                    false,
+5561	                    recovery_cause,
+5562	                    recovery_strategy,
+5563	                    preserved_tool_evidence,
+5564	                    step_ctx,
+5565	                );
+5566	                try finishRecoveryPaused(
+5567	                    deps,
+5568	                    finalization,
+5569	                    &finish_trace,
+5570	                    recovery_cause,
+5571	                    semantic_attempt,
+5572	                    semantic_limit,
+5573	                    pausedRequiredAction(preserved_tool_evidence),
+5574	                    defaultRecoveryDiagnostic(.request_limit_reached),
+5575	                );
+5576	                pending_auto_retry_status = null;
+5577	                return;
+5578	            }
+5579	            const just_rebuilt_request = skip_next_preflight_refresh and active_compaction_handoff != null and context_overflow_recovery != .pending;
+5580	            if (skip_next_preflight_refresh) {
+5581	                skip_next_preflight_refresh = false;
+5582	            } else {
+5583	                _ = try refreshGatewayCredentialForJob(
+5584	                    deps,
+5585	                    std.heap.c_allocator,
+5586	                    job,
+5587	                    .if_needed,
+5588	                    &active_api_key,
+5589	                    &owned_refreshed_api_key,
+5590	                    step_ctx,
+5591	                );
+5592	            }
+5593	            provider_prompt = try build_provider_prompt_with_response_language_control(
+5594	                overlay_arena,
+5595	                stable_prefix.items,
+5596	                ephemeral_overlay.items,
+5597	                history_messages.items,
+5598	                current_user_effective,
+5599	                try eviction.view(overlay_arena, within_turn_suffix.items, compacted_suffix_len),
+5600	                config.origin,
+5601	                config.enforce_response_language,
+5602	                response_language_correction_attempted,
+5603	                active_compaction_handoff,
+5604	                active_compaction_history_tail,
+5605	                compacted_suffix_len,
+5606	            );
+5607	            gateway_instructions = provider_prompt.instructions;
+5608	            gateway_messages = provider_prompt.messages;
+5609	            current_user_message_index = provider_prompt.current_user_index;
+5610	            debug_trace.eventf("agent", "before_provider_preflight", step_ctx, "model={s} messages={d}", .{ gateway_model, gateway_instructions.items.len + gateway_messages.items.len });
+5611	            const vision_policy = visionPolicy(
+5612	                request_capabilities.image_input_support,
+5613	                config.provider_capabilities.vision_fallback,
+5614	                deps.tool_registry.lookup("vision") != null and
+5615	                    !tool_projection.excludedByEnvironment("vision"),
+5616	                pending_image_ids.len > 0,
+5617	            );
+5618	            const vision_route: runtime_vision_contracts.VisionRoute = if (vision_policy.route == .fallback)
+5619	                .text_only
+5620	            else
+5621	                .native_images;
+5622	            const vision_mode = vision_policy.mode;
+5623	            debug_trace.eventf(
+5624	                "agent",
+5625	                "vision_policy",
+5626	                step_ctx,
+5627	                "model={s} image_support={s} route={s} mode={s} pending_images={d}",
+5628	                .{
+5629	                    gateway_model,
+5630	                    @tagName(request_capabilities.image_input_support),
+5631	                    @tagName(vision_policy.route),
+5632	                    @tagName(vision_mode),
+5633	                    pending_image_ids.len,
+5634	                },
+... [showing 255 of 10662 lines; use start_line/line_count to read more.]
+</content>

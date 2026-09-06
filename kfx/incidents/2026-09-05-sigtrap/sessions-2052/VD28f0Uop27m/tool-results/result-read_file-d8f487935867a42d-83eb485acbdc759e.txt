@@ -1,0 +1,104 @@
+<path>/Users/kettan/career/raft-computer/refactor-remove-eviction/tests/e2e/config-persistence.test.ts</path>
+<content>
+1  	import { afterEach, describe, expect, test } from "bun:test";
+2  	import {
+3  	  existsSync,
+4  	  mkdirSync,
+5  	  mkdtempSync,
+6  	  readFileSync,
+7  	  readdirSync,
+8  	  realpathSync,
+9  	  rmSync,
+10 	  statSync,
+11 	  symlinkSync,
+12 	  writeFileSync,
+13 	} from "node:fs";
+14 	import { tmpdir } from "node:os";
+15 	import { join } from "node:path";
+16 	import { FX_BIN, runFx } from "../evals/eval-helpers";
+17 	import {
+18 	  composerContains,
+19 	  FAKE_GATEWAY_MODEL,
+20 	  fakeGatewayFinalText,
+21 	  fakeGatewayToolCall,
+22 	  hasEmptyComposer,
+23 	  startFakeGateway,
+24 	  TmuxSession,
+25 	  tmuxAvailable,
+26 	} from "./tmux-helpers";
+27 	
+28 	const TIMEOUT = 20_000;
+29 	const NO_AUTH = {
+30 	  AI_GATEWAY_API_KEY: "",
+31 	  VERCEL_OIDC_TOKEN: "",
+32 	  FX_MODEL: undefined,
+33 	  NO_COLOR: "1",
+34 	};
+35 	
+36 	const serialTest = test.serial;
+37 	const SELECTED_COMPLETION_SGR = "\x1b[1m\x1b[38;5;255m";
+38 	
+39 	function systemPromptCheck(doctorJson: string): unknown {
+40 	  const checks = JSON.parse(doctorJson).checks as Array<{ name: string }>;
+41 	  return checks.find((entry) => entry.name === "system_prompt");
+42 	}
+43 	
+44 	function selectedModelStageRow(paneEscapes: string, label: string): string | null {
+45 	  return paneEscapes.split("\n").find((line) => {
+46 	    const visible = line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").trim();
+47 	    return line.includes(SELECTED_COMPLETION_SGR) && visible === label;
+48 	  }) ?? null;
+49 	}
+50 	
+51 	async function waitForSelectedModelStage(
+52 	  active: TmuxSession,
+53 	  label: string,
+54 	  timeoutMs: number,
+55 	): Promise<string> {
+56 	  const deadline = Date.now() + timeoutMs;
+57 	  let last: string | null = null;
+58 	  while (Date.now() < deadline) {
+59 	    last = selectedModelStageRow(await active.capturePaneEscapes(), label);
+60 	    if (last !== null) return last;
+61 	    await new Promise((resolve) => setTimeout(resolve, 25));
+62 	  }
+63 	  throw new Error(`Timed out waiting for selected model option ${label}; last=${last}`);
+64 	}
+65 	
+66 	async function disablePromptHistory(
+67 	  session: TmuxSession,
+68 	  settingsPath: string,
+69 	): Promise<void> {
+70 	  await session.sendText("/settings");
+71 	  await session.waitForText("←→ Change", TIMEOUT);
+72 	  await session.sendLiteral("prompt history");
+73 	  await session.waitForPane(
+74 	    (pane) => pane.includes("Prompt history") && !pane.includes("Startup scrollback"),
+75 	    TIMEOUT,
+76 	  );
+77 	  await session.sendKeys("Left");
+78 	  const deadline = Date.now() + TIMEOUT;
+79 	  let enabled: unknown;
+80 	  while (Date.now() < deadline) {
+81 	    if (existsSync(settingsPath)) {
+82 	      enabled = JSON.parse(readFileSync(settingsPath, "utf8")).prompt_history?.enabled;
+83 	      if (enabled === false) break;
+84 	    }
+85 	    await Bun.sleep(25);
+86 	  }
+87 	  if (enabled !== false) throw new Error("Timed out disabling prompt history");
+88 	  await session.sendKeys("Escape");
+89 	  await session.waitForPane(
+90 	    (pane) => hasEmptyComposer(pane) && !pane.includes("←→ Change"),
+91 	    TIMEOUT,
+92 	  );
+93 	}
+94 	
+95 	function tree(root: string, relative = ""): string[] {
+96 	  const path = relative ? join(root, relative) : root;
+97 	  const entries = readdirSync(path, { withFileTypes: true });
+98 	  const result: string[] = [];
+99 	  for (const entry of entries) {
+100	    const child = relative ? join(relative, entry.name) : entry.name;
+... [showing 100 of 2718 lines; use start_line/line_count to read more.]
+</content>

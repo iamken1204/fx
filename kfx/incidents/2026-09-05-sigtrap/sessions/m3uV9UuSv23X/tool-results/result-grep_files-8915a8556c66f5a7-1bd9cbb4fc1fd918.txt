@@ -1,0 +1,8 @@
+[grep] 1 matches for evict
+   kfx/specs/recoverable-session-history.md:28- 
+   kfx/specs/recoverable-session-history.md:29- ## Goal
+   kfx/specs/recoverable-session-history.md:30- 
+ - kfx/specs/recoverable-session-history.md:31: Make prompt eviction reversible without treating historical text as current authority:
+   kfx/specs/recoverable-session-history.md:32- 
+   kfx/specs/recoverable-session-history.md:33- - canonical history remains the source of truth;
+   kfx/specs/recoverable-session-history.md:34- - omitted prompt spans carry compact navigation landmarks;

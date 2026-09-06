@@ -1,0 +1,244 @@
+<path>tests/e2e/config-persistence.test.ts</path>
+<content>
+1  	import { afterEach, describe, expect, test } from "bun:test";
+2  	import {
+3  	  existsSync,
+4  	  mkdirSync,
+5  	  mkdtempSync,
+6  	  readFileSync,
+7  	  readdirSync,
+8  	  realpathSync,
+9  	  rmSync,
+10 	  statSync,
+11 	  symlinkSync,
+12 	  writeFileSync,
+13 	} from "node:fs";
+14 	import { tmpdir } from "node:os";
+15 	import { join } from "node:path";
+16 	import { FX_BIN, runFx } from "../evals/eval-helpers";
+17 	import {
+18 	  composerContains,
+19 	  FAKE_GATEWAY_MODEL,
+20 	  fakeGatewayFinalText,
+21 	  fakeGatewayToolCall,
+22 	  hasEmptyComposer,
+23 	  startFakeGateway,
+24 	  TmuxSession,
+25 	  tmuxAvailable,
+26 	} from "./tmux-helpers";
+27 	
+28 	const TIMEOUT = 20_000;
+29 	const NO_AUTH = {
+30 	  AI_GATEWAY_API_KEY: "",
+31 	  VERCEL_OIDC_TOKEN: "",
+32 	  FX_MODEL: undefined,
+33 	  NO_COLOR: "1",
+34 	};
+35 	
+36 	const serialTest = test.serial;
+37 	const SELECTED_COMPLETION_SGR = "\x1b[1m\x1b[38;5;255m";
+38 	
+39 	function systemPromptCheck(doctorJson: string): unknown {
+40 	  const checks = JSON.parse(doctorJson).checks as Array<{ name: string }>;
+41 	  return checks.find((entry) => entry.name === "system_prompt");
+42 	}
+43 	
+44 	function selectedModelStageRow(paneEscapes: string, label: string): string | null {
+45 	  return paneEscapes.split("\n").find((line) => {
+46 	    const visible = line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").trim();
+47 	    return line.includes(SELECTED_COMPLETION_SGR) && visible === label;
+48 	  }) ?? null;
+49 	}
+50 	
+51 	async function waitForSelectedModelStage(
+52 	  active: TmuxSession,
+53 	  label: string,
+54 	  timeoutMs: number,
+55 	): Promise<string> {
+56 	  const deadline = Date.now() + timeoutMs;
+57 	  let last: string | null = null;
+58 	  while (Date.now() < deadline) {
+59 	    last = selectedModelStageRow(await active.capturePaneEscapes(), label);
+60 	    if (last !== null) return last;
+61 	    await new Promise((resolve) => setTimeout(resolve, 25));
+62 	  }
+63 	  throw new Error(`Timed out waiting for selected model option ${label}; last=${last}`);
+64 	}
+65 	
+66 	async function disablePromptHistory(
+67 	  session: TmuxSession,
+68 	  settingsPath: string,
+69 	): Promise<void> {
+70 	  await session.sendText("/settings");
+71 	  await session.waitForText("←→ Change", TIMEOUT);
+72 	  await session.sendLiteral("prompt history");
+73 	  await session.waitForPane(
+74 	    (pane) => pane.includes("Prompt history") && !pane.includes("Startup scrollback"),
+75 	    TIMEOUT,
+76 	  );
+77 	  await session.sendKeys("Left");
+78 	  const deadline = Date.now() + TIMEOUT;
+79 	  let enabled: unknown;
+80 	  while (Date.now() < deadline) {
+81 	    if (existsSync(settingsPath)) {
+82 	      enabled = JSON.parse(readFileSync(settingsPath, "utf8")).prompt_history?.enabled;
+83 	      if (enabled === false) break;
+84 	    }
+85 	    await Bun.sleep(25);
+86 	  }
+87 	  if (enabled !== false) throw new Error("Timed out disabling prompt history");
+88 	  await session.sendKeys("Escape");
+89 	  await session.waitForPane(
+90 	    (pane) => hasEmptyComposer(pane) && !pane.includes("←→ Change"),
+91 	    TIMEOUT,
+92 	  );
+93 	}
+94 	
+95 	function tree(root: string, relative = ""): string[] {
+96 	  const path = relative ? join(root, relative) : root;
+97 	  const entries = readdirSync(path, { withFileTypes: true });
+98 	  const result: string[] = [];
+99 	  for (const entry of entries) {
+100	    const child = relative ? join(relative, entry.name) : entry.name;
+101	    result.push(child);
+102	    if (entry.isDirectory()) result.push(...tree(root, child));
+103	  }
+104	  return result.sort();
+105	}
+106	
+107	function migrationSnapshotPath(home: string, field: string): string {
+108	  const backups = join(home, ".fx", "backups");
+109	  const name = `settings.json.preference-migration.${field}.json`;
+110	  expect(readdirSync(backups)).toContain(name);
+111	  return join(backups, name);
+112	}
+113	
+114	function clearedPaneWithoutAllowlistRules(pane: string): boolean {
+115	  return (
+116	    hasEmptyComposer(pane) &&
+117	    !pane.includes("● Allowlist:") &&
+118	    !pane.includes("user *")
+119	  );
+120	}
+121	
+122	describe.skipIf(!tmuxAvailable())("config persistence", () => {
+123	  let session: TmuxSession | null = null;
+124	  let secondSession: TmuxSession | null = null;
+125	
+126	  afterEach(async () => {
+127	    await session?.kill();
+128	    await secondSession?.kill();
+129	    session = null;
+130	    secondSession = null;
+131	  });
+132	
+133	  serialTest(
+134	    "user preferences migrate globally and load in another project",
+135	    async () => {
+136	      const root = mkdtempSync(join(tmpdir(), "fx-config-persistence-"));
+137	      const gateway = startFakeGateway([], {
+138	        models: [{
+139	          id: "anthropic/claude-opus-4.7",
+140	          type: "language",
+141	          tags: ["tool-use"],
+142	          reasoning_options: [{ type: "effort", values: ["high"] }],
+143	          fast_options: [{ type: "toggle" }],
+144	        }],
+145	      });
+146	      try {
+147	        const home = join(root, "home");
+148	        const workspaceA = join(root, "workspace-a");
+149	        const workspaceB = join(root, "workspace-b");
+150	        const stderrAPath = join(root, "stderr-a.log");
+151	        const stderrBPath = join(root, "stderr-b.log");
+152	        mkdirSync(join(home, ".fx"), { recursive: true, mode: 0o700 });
+153	        mkdirSync(workspaceA);
+154	        mkdirSync(workspaceB);
+155	        const workspaceARoot = realpathSync(workspaceA);
+156	        const workspaceBRoot = realpathSync(workspaceB);
+157	        const projectABytes = "{\"project_future\":{\"name\":\"a\"}}\n";
+158	        const projectBBytes = "{\"project_future\":{\"name\":\"b\"}}\n";
+159	        writeFileSync(join(workspaceA, ".fx.json"), projectABytes);
+160	        writeFileSync(join(workspaceB, ".fx.json"), projectBBytes);
+161	        writeFileSync(
+162	          join(home, ".fx", "settings.json"),
+163	          JSON.stringify({
+164	            future_global: { nested: "preserve-me" },
+165	            workspaces: {
+166	              [workspaceARoot]: {
+167	                model: "legacy/project-a",
+168	                permission_mode: "ask",
+169	                effort: "low",
+170	                fast_mode: false,
+171	                startup_scrollback: true,
+172	                prompt_history: { enabled: true, future: "keep-a-history" },
+173	                statusLine: {
+174	                  sandbox: false,
+175	                  context: false,
+176	                  session: false,
+177	                  workspace: false,
+178	                  future: "keep-a-status",
+179	                },
+180	                future_workspace: { nested: "a" },
+181	              },
+182	              [workspaceBRoot]: {
+183	                model: "legacy/project-b",
+184	                permission_mode: "ask",
+185	                effort: "high",
+186	                fast_mode: false,
+187	                startup_scrollback: true,
+188	                prompt_history: { enabled: true, future: "keep-b-history" },
+189	                statusLine: {
+190	                  sandbox: false,
+191	                  context: false,
+192	                  session: false,
+193	                  workspace: false,
+194	                  future: "keep-b-status",
+195	                },
+196	                future_workspace: { nested: "b" },
+197	              },
+198	            },
+199	          }) + "\n",
+200	          { mode: 0o600 },
+201	        );
+202	        const catalogEnv = {
+203	          ...NO_AUTH,
+204	          HOME: home,
+205	          FX_E2E_GATEWAY_MODELS_URL: `${gateway.baseUrl}/coding-agent/v1/models`,
+206	        };
+207	
+208	        session = await TmuxSession.create({
+209	          cwd: workspaceARoot,
+210	          env: catalogEnv,
+211	          stderrPath: stderrAPath,
+212	        });
+213	        await session.waitForText("Run /help", TIMEOUT);
+214	        await session.sendKeys("BTab");
+215	        await session.waitForText("auto ·", TIMEOUT);
+216	        await session.pasteText("/model anthropic/claude-opus-4.7 auto normal");
+217	        const beforeModelCommit = JSON.parse(
+218	          readFileSync(join(home, ".fx", "settings.json"), "utf8"),
+219	        );
+220	        expect(beforeModelCommit).not.toHaveProperty("model");
+221	        await session.sendKeys("Enter");
+222	        await session.waitForText("● Switched to anthropic/claude-opus-4.7", TIMEOUT);
+223	        await session.sendText("/fast");
+224	        await session.waitForText("● Fast: on", TIMEOUT);
+225	        await session.sendText("/statusline context");
+226	        await session.waitForText("● Statusline: context:", TIMEOUT);
+227	        await session.sendText("/statusline session");
+228	        await session.waitForText("● Statusline: session:", TIMEOUT);
+229	        await session.sendText("/statusline workspace");
+230	        await session.waitForText("● Statusline: workspace:", TIMEOUT);
+231	        await session.sendText("/settings startup-scrollback off");
+232	        await session.waitForText("startup_scrollback: off", TIMEOUT);
+233	        await disablePromptHistory(session, join(home, ".fx", "settings.json"));
+234	        await session.sendText("/quit");
+235	        await session.waitForSessionEnd(TIMEOUT);
+236	        session = null;
+237	
+238	        const stored = JSON.parse(readFileSync(join(home, ".fx", "settings.json"), "utf8"));
+239	        expect(stored.models.gateway).toBe("anthropic/claude-opus-4.7");
+240	        expect(stored.permission_mode).toBe("auto");
+... [showing 240 of 2718 lines; use start_line/line_count to read more.]
+</content>

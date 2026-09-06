@@ -1,0 +1,6 @@
+[grep] 5 files with matches for eviction
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/FORK.md
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/kfx/incidents/2026-09-05-sigtrap/README.md
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/kfx/specs/context-budget.md
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/kfx/specs/recoverable-session-history.md
+ - /Users/kettan/career/raft-computer/refactor-remove-eviction/kfx/specs/threshold-eviction.md

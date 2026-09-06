@@ -1,0 +1,63 @@
+<path>/Users/kettan/career/raft-computer/refactor-remove-eviction/FORK.md</path>
+<content>
+103	2. `zig build`, then confirm the exclusion end to end: point `FX_GATEWAY_CHAT_URL` at a local server that captures the POST body, run `FX_EXCLUDE_TOOLS=vision,web_search ./zig-out/bin/fx ask "hi"`, and check the captured `tools` array omits the excluded names while the baseline run includes them. `web_search` is advertised to the model as the gateway provider tool `exa_search`, so that is the name to look for; `vision` is only advertised when the model lacks native vision.
+104	3. Confirm `~/.fx/SYSTEM.md` still displaces the compiled prompt (`fx doctor` reports the system_prompt check).
+105	4. `cd kfx/repro && DUMP=1 STEPS=12 sh run.sh evict12 FX_KEEP_RECENT_RESULTS=2 FX_EVICT_THRESHOLD_KB=48`, then check `out/evict12/server.log.req13.json` carries `<tool_result_handle>` stubs in place of the older tool outputs and stays well below the unfiltered run (`DUMP=1 STEPS=12 sh run.sh base12`). Without the explicit threshold the default 256 KiB never trips on 12 capped steps and no stub appears; that is the intended cache-stable behavior, not a regression.
+106	5. `FX_SKILL_SOURCES=claude` against the same capture drops every `<location>` outside `~/.claude/skills`, and no skill with `disable-model-invocation: true` appears with or without the variable.
+107	6. Run the freshly built `./zig-out/bin/fx` in a real TTY with Codex active, open `/provider`, and confirm the active row shows the profile email or masked account ID plus `current`; exit through the UI and require clean stderr.
+108	7. In the same isolated `HOME`, drop a second v1 session file into `.fx/chatgpt-accounts/` (fake tokens are fine), then check `/login codex nope` lists it, `/login codex <its account id>` swaps the files and reports the load failure for the fake tokens, `/login codex <real email>` swaps back and prints `Switched Codex account to`, and `/login codex new` opens the Codex sign-in screen while an account is active (Esc cancels).
+109	
+110	### Provider picker verification notes
+111	
+112	* Find the live screen owner before editing. The setup Connections screen is rendered by `src/ui/footer/picker_presentation.zig`, but the slash-command provider rows and annotations are assembled by `src/core/app/provider_picker_runtime.zig`.
+113	* Auth source files are not standalone Zig test roots because their imports depend on the build graph. Run their tests through `zig build test`; direct `zig test src/...` failures do not prove the changed test failed.
+114	* Exercise this path with the freshly built `./zig-out/bin/fx` attached to a real TTY. An isolated `HOME` can carry a permission-restricted copy of `chatgpt-auth.json`; drive `/provider` through tmux, inspect the pane and stderr, exit through the UI, then delete the credential copy.
+115	
+116	## CI field notes
+117	
+118	Hard-won lessons from debugging Full CI failures locally. Recorded after diagnosing a Linux-only SIGSEGV in `mcp-stdio.test.ts` (a use-after-free introduced by a per-call arena change, 2026-08).
+119	
+120	### Reading e2e failures
+121	
+122	* `result.code === null` from `runFx` means the process died from a signal (Node reports `code=null, signal=set`), not a nonzero exit. If the test also finished far below its timeout, it is a crash, not a hang.
+123	* A failure that reproduces on both Linux architectures and survives the shard's bounded retry is deterministic. Treat single-platform single-run failures as flakes only after a rerun.
+124	
+125	### Allocator-lifetime bugs hide on macOS
+126	
+127	* A use-after-free of `ArenaAllocator` memory backed by `c_allocator` typically passes silently on macOS (freed pages stay mapped and intact) and crashes with SIGSEGV on Linux (glibc returns large chunks via `munmap`). Green macOS runs prove nothing about pointer lifetimes; verify allocator-ownership changes on Linux before pushing.
+128	* The ownership trap that caused the crash: `PromptRunResult.error_code` is a borrowed pointer that `deinit` never frees, so every value assigned to it must be static memory. A dispatch-boundary copy-out that dupes `status_detail` onto the turn arena silently broke that contract. When adding copy-out or changing result ownership, audit every consumer that retains a pointer past the turn arena (search for sinks that assign without `dupe`).
+129	
+130	### Reproducing Linux CI locally
+131	
+132	Docker on Apple Silicon runs `--platform linux/arm64` natively (fast) and `linux/amd64` via emulation (build takes several minutes but works). Recipe that matches CI closely enough:
+133	
+134	```bash
+135	docker run -d --init --name fx-repro --platform linux/arm64 \
+136	  -v "$PWD":/src:ro ubuntu:24.04 sleep 7200
+137	docker exec fx-repro bash -c '
+138	  apt-get update -qq && apt-get install -y -qq curl xz-utils git tmux unzip python3
+139	  curl -fsSL https://ziglang.org/download/0.16.0/zig-aarch64-linux-0.16.0.tar.xz | tar -xJ -C /opt
+140	  ln -s /opt/zig-*/zig /usr/local/bin/zig
+141	  curl -fsSL https://bun.sh/install | BUN_INSTALL=/opt/bun bash && ln -s /opt/bun/bin/bun /usr/local/bin/bun
+142	  cp -r /src /work && cd /work && rm -rf zig-out .zig-cache && zig build -Doptimize=ReleaseSafe
+143	  cd tests/e2e && bun install && bun test <failing-file>.test.ts'
+144	```
+145	
+146	Container pitfalls that produce false failures:
+147	
+148	* Run the container with `--init`. Without a reaper, exited MCP fixture processes stay as zombies and `expectFixtureProcessesExited` reports them as still alive.
+149	* Install `python3`; permission tests shell out to it for `os.getsid`.
+150	* Match the Zig version pinned in `.github/workflows/full-ci.yml`, not whatever Homebrew has.
+151	
+152	### Getting a backtrace out of a crash
+153	
+154	* Non-Debug binaries are stripped (`build.zig` sets `.strip = optimize != .Debug`), so gdb on the ReleaseSafe binary yields nothing. Build Debug inside the container; the crash usually reproduces there too.
+155	* The e2e harness resolves the binary from the fixed path `zig-out/bin/fx` (`tests/evals/eval-helpers.ts`). To run every spawned fx under gdb, move the real binary aside and drop in a wrapper script: `exec gdb -batch -ex run -ex bt --args /work/zig-out/bin/fx.debug "$@" 2>&1`. The tests then capture the backtrace in the recorded stdout.
+156	* A crash PC in heap range with an unwindable stack means execution jumped through a corrupted or freed pointer; on aarch64 read `$lr` and walk `$x29` manually when `bt` gives up.
+157	
+158	### Judging local test noise
+159	
+160	* macOS-local `zig build test` currently carries a pre-existing `terminal` test leak and an occasional `command_runner` timing flake that do not appear on CI runners. Before attributing any local failure to your diff, `git stash` and rerun on the unmodified HEAD; only deltas matter.
+161	* Full local assurance of Full CI is impossible: it needs all four native runners and macOS x86_64 cannot run on an arm64 host. Best local coverage is the failing files on both Linux architectures in Docker plus local macOS plus `zig build test`; the authority remains Full CI on the exact pushed commit.
+... [showing 59 of 161 lines; use start_line/line_count to read more.]
+</content>

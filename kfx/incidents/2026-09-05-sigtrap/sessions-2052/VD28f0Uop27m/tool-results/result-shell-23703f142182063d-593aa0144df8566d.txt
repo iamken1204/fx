@@ -1,0 +1,1 @@
+{"session_id":"shell-10","state":"running","backend":"captured","persistence":"process","output_truncated":false,"output_incomplete":false,"output_terminal_safe":true,"full_output_handle":null,"exit_code":null,"signal":null,"termination_indeterminate":false,"duration_ms":null,"accepted_bytes":null,"error":null,"retry_guidance":null,"output_delta":""}

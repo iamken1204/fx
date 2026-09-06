@@ -1,0 +1,214 @@
+<path>src/core/session/result_store.zig</path>
+<content>
+1  	const std = @import("std");
+2  	const io_mod = @import("../shared/io.zig");
+3  	const text_utils = @import("../shared/text_utils.zig");
+4  	const types = @import("../shared/types.zig");
+5  	const artifact_digest = @import("artifact_digest.zig");
+6  	const session_child_store = @import("session_child_store.zig");
+7  	
+8  	const Allocator = std.mem.Allocator;
+9  	
+10 	pub const large_result_threshold_bytes: usize = 16 * 1024;
+11 	pub const preview_bytes: usize = 4 * 1024;
+12 	pub const read_default_bytes: usize = 8 * 1024;
+13 	pub const read_max_bytes: usize = 64 * 1024;
+14 	pub const full_read_chunk_bytes: usize = 64 * 1024;
+15 	const stored_text_max_bytes: usize = 8 * 1024 * 1024;
+16 	
+17 	pub const PreparedResult = struct {
+18 	    model_output: []const u8,
+19 	    memory: types.ToolResultMemory,
+20 	};
+21 	
+22 	pub const StorageTarget = union(enum) {
+23 	    legacy_dir: []const u8,
+24 	    managed: *session_child_store.SessionChildCapability,
+25 	
+26 	    /// The store a turn writes tool results to: the managed capability when
+27 	    /// the session has one, else the legacy directory, else nothing.
+28 	    pub fn fromSession(
+29 	        capability: ?*session_child_store.SessionChildCapability,
+30 	        result_dir: ?[]const u8,
+31 	    ) ?StorageTarget {
+32 	        if (capability) |managed| return .{ .managed = managed };
+33 	        if (result_dir) |dir| return .{ .legacy_dir = dir };
+34 	        return null;
+35 	    }
+36 	
+37 	    /// Stores `text` under a content-derived handle and returns the handle.
+38 	    pub fn store(
+39 	        self: StorageTarget,
+40 	        alloc: Allocator,
+41 	        tool_call_id: []const u8,
+42 	        tool_name: []const u8,
+43 	        text: []const u8,
+44 	    ) ![]u8 {
+45 	        const handle = try makeHandle(alloc, tool_call_id, tool_name, text);
+46 	        errdefer alloc.free(handle);
+47 	        switch (self) {
+48 	            .legacy_dir => |dir| try storeLargeResultAtHandle(alloc, dir, handle, text),
+49 	            .managed => |capability| try storeLargeResultAtHandleManaged(alloc, capability, handle, text),
+50 	        }
+51 	        return handle;
+52 	    }
+53 	};
+54 	
+55 	/// Read-only, validated access to persisted tool-result text. The
+56 	/// caller chooses bounded raw pages and owns each returned allocation.
+57 	pub const ResultReader = struct {
+58 	    file: session_child_store.ManagedFile,
+59 	    size: usize,
+60 	
+61 	    pub fn deinit(self: *ResultReader) void {
+62 	        self.file.deinit();
+63 	        self.* = undefined;
+64 	    }
+65 	
+66 	    pub fn readPage(
+67 	        self: *ResultReader,
+68 	        alloc: Allocator,
+69 	        offset: usize,
+70 	        max_bytes: usize,
+71 	    ) ![]u8 {
+72 	        if (offset >= self.size or max_bytes == 0) return alloc.dupe(u8, "");
+73 	        return self.file.readRange(alloc, offset, @min(max_bytes, self.size - offset));
+74 	    }
+75 	};
+76 	
+77 	pub fn prepare(
+78 	    alloc: Allocator,
+79 	    result_dir: ?[]const u8,
+80 	    tool_call_id: []const u8,
+81 	    tool_name: []const u8,
+82 	    output_bytes: usize,
+83 	    durable_output: []const u8,
+84 	    inline_cap: usize,
+85 	) !PreparedResult {
+86 	    if (result_dir) |dir| {
+87 	        if (output_bytes > large_result_threshold_bytes or
+88 	            durable_output.len > inline_cap)
+89 	        {
+90 	            return prepareStoredResult(
+91 	                alloc,
+92 	                .{ .legacy_dir = dir },
+93 	                tool_call_id,
+94 	                tool_name,
+95 	                output_bytes,
+96 	                durable_output,
+97 	            );
+98 	        }
+99 	        return prepareExternallyBackedInlineResult(
+100	            alloc,
+101	            .{ .legacy_dir = dir },
+102	            tool_call_id,
+103	            tool_name,
+104	            output_bytes,
+105	            durable_output,
+106	        );
+107	    }
+108	    const capped = try cappedInlineOutput(alloc, tool_name, durable_output, inline_cap);
+109	    return .{
+110	        .model_output = capped,
+111	        .memory = .{
+112	            .output_bytes = output_bytes,
+113	            .stored_output_bytes = durable_output.len,
+114	            .truncated = capped.len < durable_output.len,
+115	        },
+116	    };
+117	}
+118	
+119	pub fn prepareManaged(
+120	    alloc: Allocator,
+121	    capability: ?*session_child_store.SessionChildCapability,
+122	    tool_call_id: []const u8,
+123	    tool_name: []const u8,
+124	    output_bytes: usize,
+125	    durable_output: []const u8,
+126	    inline_cap: usize,
+127	) !PreparedResult {
+128	    if (capability) |managed| {
+129	        if (output_bytes > large_result_threshold_bytes or
+130	            durable_output.len > inline_cap)
+131	        {
+132	            return prepareStoredResult(
+133	                alloc,
+134	                .{ .managed = managed },
+135	                tool_call_id,
+136	                tool_name,
+137	                output_bytes,
+138	                durable_output,
+139	            );
+140	        }
+141	        return prepareExternallyBackedInlineResult(
+142	            alloc,
+143	            .{ .managed = managed },
+144	            tool_call_id,
+145	            tool_name,
+146	            output_bytes,
+147	            durable_output,
+148	        );
+149	    }
+150	    const capped = try cappedInlineOutput(alloc, tool_name, durable_output, inline_cap);
+151	    return .{
+152	        .model_output = capped,
+153	        .memory = .{
+154	            .output_bytes = output_bytes,
+155	            .stored_output_bytes = durable_output.len,
+156	            .truncated = capped.len < durable_output.len,
+157	        },
+158	    };
+159	}
+160	
+161	fn prepareExternallyBackedInlineResult(
+162	    alloc: Allocator,
+163	    target: StorageTarget,
+164	    tool_call_id: []const u8,
+165	    tool_name: []const u8,
+166	    output_bytes: usize,
+167	    durable_output: []const u8,
+168	) !PreparedResult {
+169	    const handle = try makeHandle(alloc, tool_call_id, tool_name, durable_output);
+170	    errdefer alloc.free(handle);
+171	    const model_output = try alloc.dupe(u8, durable_output);
+172	    errdefer alloc.free(model_output);
+173	    const preview = try previewText(alloc, durable_output, preview_bytes);
+174	    errdefer alloc.free(preview);
+175	    switch (target) {
+176	        .legacy_dir => |dir| try storeLargeResultAtHandle(
+177	            alloc,
+178	            dir,
+179	            handle,
+180	            durable_output,
+181	        ),
+182	        .managed => |capability| try storeLargeResultAtHandleManaged(
+183	            alloc,
+184	            capability,
+185	            handle,
+186	            durable_output,
+187	        ),
+188	    }
+189	    return .{
+190	        .model_output = model_output,
+191	        .memory = .{
+192	            .output_handle = handle,
+193	            .preview = preview,
+194	            .output_bytes = output_bytes,
+195	            .stored_output_bytes = durable_output.len,
+196	            .truncated = false,
+197	        },
+198	    };
+199	}
+200	
+201	fn prepareStoredResult(
+202	    alloc: Allocator,
+203	    target: StorageTarget,
+204	    tool_call_id: []const u8,
+205	    tool_name: []const u8,
+206	    output_bytes: usize,
+207	    durable_output: []const u8,
+208	) !PreparedResult {
+209	    const handle = try makeHandle(
+210	        alloc,
+... [showing 210 of 1095 lines; use start_line/line_count to read more.]
+</content>
