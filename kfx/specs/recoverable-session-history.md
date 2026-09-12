@@ -2,21 +2,19 @@
 
 Fork spec for the `kfx` patch stack. Status: not implemented. Nothing below exists in the tree.
 
-Phase 2 of the context-retention roadmap. Keep canonical session history lossless and give the model bounded, read-only tools to locate and recover exact turns after those turns leave the prompt.
+Keep canonical session history lossless and give the model bounded, read-only tools to locate and recover exact turns after those turns leave the prompt.
 
 ## Relationship and rollout order
 
-Phase 1 is [context-retention.md](context-retention.md). It extends the directly visible history horizon and moves retained history into the cacheable prompt prefix. This spec owns what happens beyond that horizon.
+Upstream owns the directly visible history horizon: automatic compaction selects recent context by token budget and keeps recent tool exchanges intact. This spec owns what happens beyond that horizon and does not change how much recent history stays directly visible.
 
 The rollout order is:
 
-1. Ship Phase 1 Patch A and Patch C together.
-2. Add stable session-local history locators and exact bounded reads.
-3. Add deterministic history search and omission landmarks.
-4. Measure real long-session prompt use, retrieval success, and cache behavior.
-5. Reconsider Phase 1 Patch B (`FX_HISTORY_BUDGET_DIVISOR`) only after those measurements.
+1. Add stable session-local history locators and exact bounded reads.
+2. Add deterministic history search and omission landmarks.
+3. Measure real long-session prompt use, retrieval success, and cache behavior.
 
-This is a product rollout dependency, not a storage dependency. Phase 1 remains useful if Phase 2 is delayed. Phase 2 must also work with the upstream default history limit, but it does not replace Phase 1: recent turns stay directly visible, while older turns become recoverable on demand.
+Recent turns stay directly visible through the upstream path, while older turns become recoverable on demand.
 
 ## Problem
 
@@ -34,7 +32,7 @@ Make prompt eviction reversible without treating historical text as current auth
 - omitted prompt spans carry compact navigation landmarks;
 - the model can search for candidate turns and read exact neighboring turns;
 - all retrieval output is bounded and enters the model as untrusted tool evidence;
-- recent history still uses the direct, cacheable Phase 1 path.
+- recent history still uses the direct upstream prompt path.
 
 The design follows the lossless-storage and query-time-projection direction described by Scroll in [Context as an Environment](https://arxiv.org/abs/2608.21690), but does not adopt its Python runtime or its full memory architecture.
 
@@ -73,7 +71,7 @@ The design follows the lossless-storage and query-time-projection direction desc
 
 ### Canonical history remains authoritative
 
-`SessionRuntime.history` and its durable session representation remain the exact source records. The Phase 2 index is derived navigation data. It must be rebuildable from canonical history and must never replace, rewrite, or summarize a turn.
+`SessionRuntime.history` and its durable session representation remain the exact source records. The history index is derived navigation data. It must be rebuildable from canonical history and must never replace, rewrite, or summarize a turn.
 
 The implementation must not make `events.jsonl` byte offsets, `log_generation`, or sequence numbers part of the public locator contract. Session log compaction and state replacement can change physical event layout. A model-visible locator must continue to identify the same semantic turn after an ordinary save, restart, and log compaction.
 
@@ -184,7 +182,7 @@ Add a regression in which an old user turn says to allow a sensitive command and
 
 ### Prompt and cache behavior
 
-Phase 1 owns the stable-prefix, durable-history, overlay, current-message, and within-turn-suffix order. Phase 2 does not introduce a second prompt assembly path.
+Upstream owns the stable-prefix, durable-history, overlay, current-message, and within-turn-suffix order. This spec does not introduce a second prompt assembly path.
 
 Omission landmarks are deterministic for an unchanged canonical history projection. Search and read observations occur only after the model calls the tools, inside the current turn's non-cacheable suffix. They must not mutate the cacheable durable-history bytes on later steps of that same turn.
 
@@ -214,7 +212,7 @@ Patch D is useful by itself: the model can follow a landmark to exact source tur
 1. Add concise tool guidance telling the model when a compaction or budget notice means exact history is available.
 2. Exercise retrieval in long-session E2E scenarios, including evidence with unknown wording where the omission landmark supplies the starting point.
 3. Measure retrieval calls, prompt input, cache reuse, missed evidence, and latency.
-4. Decide whether Phase 1 Patch B still provides enough value to justify a larger directly visible history budget.
+4. Decide from the measurements whether a larger directly visible history budget is worth proposing at all.
 
 Each patch is independently keepable or droppable during an upstream rebase and gets its own `FORK.md` inventory row when implemented.
 
@@ -240,11 +238,11 @@ Long-lived operating rules still belong in `~/.fx/SYSTEM.md`, `AGENTS.md`, or an
 
 1. Focused locator tests prove frozen `h1` vectors, malformed-input rejection, cross-session mismatch, rollback staleness, and exact semantic verification.
 2. Save and resume a session, force session-log compaction or state replacement, and confirm every preexisting locator still resolves to byte-identical typed turn content.
-3. Run beyond `FX_MAX_HISTORY_TURNS`: the prompt projection contains bounded omission landmarks, and an omitted early turn is recoverable verbatim with `read_session_history`.
+3. Run past the upstream history horizon: the prompt projection contains bounded omission landmarks, and an omitted early turn is recoverable verbatim with `read_session_history`.
 4. Force token-budget trimming with discontinuous selections and confirm every omitted turn belongs to exactly one reported range, or confirm the deliberately changed contiguous-suffix policy.
 5. Search ASCII, mixed-case ASCII, CJK text, tool names, arguments, result handles, and file paths. Verify deterministic ordering, pagination, scan-limit reporting, and output caps.
 6. Recover a turn containing a large tool-result handle, then resolve it through `read_tool_result`; `read_session_history` itself never exceeds its cap.
-7. Capture a multi-step gateway request. Search/read results appear only in the current non-cacheable suffix, while the Phase 1 stable prefix and durable-history bytes remain unchanged.
+7. Capture a multi-step gateway request. Search/read results appear only in the current non-cacheable suffix, while the stable prefix and durable-history bytes remain unchanged.
 8. Retrieve an old user instruction that asks for a sensitive action. Confirm it does not satisfy permission authority and the action still receives the normal current-turn policy decision.
 9. Run focused Zig tests, focused E2E, `zig fmt --check src/`, and `zig build`.
 10. Exercise the path with freshly built `./zig-out/bin/fx` against a deterministic fake gateway: cross the history horizon, follow a landmark, search, read an exact turn, and use it in the answer. Confirm no abort and clean stderr.

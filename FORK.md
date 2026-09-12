@@ -49,18 +49,15 @@ Specs live in `kfx/specs/`, one file per intent, each opening with a status line
 | --- | --- | --- |
 | [de-vercel.md](kfx/specs/de-vercel.md) | idea | Keep remaining Vercel surfaces dormant through configuration; patch cosmetic exposure only if it bothers |
 | [local-web-control-plane.md](kfx/specs/local-web-control-plane.md) | spec | Add a single-user loopback web UI that lists every durable local session and continues dormant or actively owned sessions through one typed control plane |
-| [context-retention.md](kfx/specs/context-retention.md) | spec | Phase 1: raise the 8-turn compaction ceiling behind `FX_MAX_HISTORY_TURNS`; move the ephemeral overlay behind history so kept history joins the cacheable prompt prefix |
-| [recoverable-session-history.md](kfx/specs/recoverable-session-history.md) | spec | Phase 2: add stable locators, omission landmarks, deterministic search, and bounded exact reads for canonical turns outside the prompt horizon |
+| [recoverable-session-history.md](kfx/specs/recoverable-session-history.md) | spec | Add stable locators, omission landmarks, deterministic search, and bounded exact reads for canonical turns outside the prompt horizon |
 | [turn-arena-memory-growth.md](kfx/specs/turn-arena-memory-growth.md) | landed, kept | Incident record for the 2026-08-29 48 GiB kill: four retained turn-arena boundaries, their fixes, the `kfx/repro` reproductions, and the real-session curves; kept because the patch inventory alone does not carry the evidence |
 | [context-budget.md](kfx/specs/context-budget.md) | mixed: active controls and historical measurements | Child usage and skill filtering remain; eviction is removed. Retains the 2026-08-29 measurements, not a comparison against the present upstream |
 | [incidents/2026-09-05-sigtrap](kfx/incidents/2026-09-05-sigtrap/README.md) | open | Heap corruption trap (`memory corruption of free block`) during a persistent child turn; crash report, sessions, replay results, and a diagnostic build with frame pointers. Binaries in that directory stay untracked |
 | [threshold-eviction.md](kfx/specs/threshold-eviction.md) | removed, historical only | Retains the 2026-09-01 cache-reset measurements and retired threshold design |
 
-Context-retention rollout: ship Phase 1 Patch A and Patch C first; then add Phase 2 locator/read, search, and retrieval guidance patches. Reconsider the optional Phase 1 history-budget increase only after Phase 2 measurements. Phase 2 complements the directly visible recent-history path rather than replacing it.
+Prompt boundary note: recoverable-history tool observations belong in the existing non-cacheable within-turn suffix and must not create another overlay. Prompt assembly stays upstream: the retained history horizon, the ephemeral overlay, and automatic compaction are upstream behavior, and no fork patch may reattach the removed eviction projection.
 
-Prompt boundary note: context-retention Patch C moves the ephemeral overlay after durable history. Recoverable-history tool observations belong in the existing non-cacheable within-turn suffix and must not create another overlay. Upstream response-language control now runs through `build_provider_prompt_with_response_language_control`, which adds a `no_cache` system message to the ephemeral overlay on eligible root turns and a trailing user correction message after a rejected candidate. Both are transient and must stay outside the cacheable prefix when the overlay moves.
-
-Prompt assembly uses the upstream within-turn suffix directly. The context-retention proposal must be checked against the landed automatic compaction before implementation; it must not reattach the removed eviction projection.
+The context-retention spec (raise the 8-turn history ceiling behind an environment variable and move the overlay behind durable history) was removed on 2026-09-12. Its problem statement no longer matched upstream: the `no_cache` overlay marking it planned to move is gone, and automatic compaction now selects recent context by token budget (`recentContextTarget` in `prompt_context.zig`) with a retry loop, so a larger fixed turn ceiling no longer describes what the model keeps. Any future work on the visible history horizon starts from a fresh measurement against the current upstream.
 
 ## Removed tool-result eviction (historical only)
 
