@@ -132,6 +132,38 @@ Dropped on 2026-09-02 while rebasing onto upstream `4ab76173`: "Scope subagent i
 * Auth source files are not standalone Zig test roots because their imports depend on the build graph. Run their tests through `zig build test`; direct `zig test src/...` failures do not prove the changed test failed.
 * Exercise this path with the freshly built `./zig-out/bin/fx` attached to a real TTY. An isolated `HOME` can carry a permission-restricted copy of `chatgpt-auth.json`; drive `/provider` through tmux, inspect the pane and stderr, exit through the UI, then delete the credential copy.
 
+## Incident notes
+
+### Revoked terminal spins at 100% CPU or aborts on exit (2026-09-13)
+
+Status: reproduced, not fixed. Two `kfx` processes launched on September 5 remained alive for about eight days, each using one CPU core. Their TTY was absent and stdin, stdout, and stderr were `revoked`. Both exited on the user-authorized `SIGTERM`. The original terminal disappearance and signal delivery could not be recovered; the remaining fish parents do not establish a Ghostty bug.
+
+The original sample's UUID, `E53F0FF6-0732-3457-AF19-DCF3C155DAA8`, matches `kfx/incidents/2026-09-05-sigtrap/kfx-diag-41d872cb.bin`. Despite that archive's name, these processes were spinning in `App.run` / `loopCollectFacts` / `poll`, not parked in the SIGTRAP handler.
+
+Two paths depend on when the terminal becomes invalid:
+
+* Before the next `poll()`: macOS returns `POLLNVAL`. `TerminalState.pollInput` in `src/ui/shell_runtime.zig:249-269` maps `IN`, `HUP`, and `ERR`, but drops `NVAL`. `src/ui/event_loop.zig:76-120` repeats without waiting or exiting, consuming one CPU core.
+* While `poll()` is waiting: the tested path returned `input_closed`, then aborted during cleanup. `TerminalState.disableRawMode` calls `std.posix.tcsetattr` at `src/ui/shell_runtime.zig:135`; Zig 0.16 treats `EBADF` as `unreachable`. The surrounding `catch {}` cannot catch a panic.
+
+Verification on macOS 26.5.1 arm64, Zig 0.16.0, fork `73f994d2`:
+
+| Test | Result |
+| --- | --- |
+| Independent PTY revocation, then poll | 100/100 returned `POLLNVAL` (32) |
+| Revoke immediately before poll, using LLDB to control timing | 3/3 runs spun at roughly 97 to 100% CPU |
+| Same controlled timing on rebuilt September 5 source `41d872cb` | 1/1 spun at roughly 99.5% CPU |
+| Revoke without controlling timing | 4/4 aborted; a diagnostic rebuild located the cleanup failure in `tcsetattr` |
+| Send `SIGHUP` to an isolated fish running fx | Both exited |
+| Close an actual Ghostty test terminal running isolated fish and fx | 3/3 exited in 5.14 to 5.17 seconds, without leftovers |
+
+The two UI files were byte-identical to upstream `4d16c835171a0e2122efcfab98f4da2f549b6b4e`; an upstream-only binary was not tested. Ghostty was `1.3.2-main-+3c1ef5b32`, fish was `4.9.3`. That fish binary was installed after September 5, so these tests do not establish the old shell's behavior.
+
+To reproduce the spin, build a symbolized `./zig-out/bin/fx`, give it an isolated `HOME`, and connect its input and output to a fresh PTY slave. Keep draining the master so startup output cannot block. Under LLDB, break at the `std.posix.poll` call in `TerminalState.pollInput` after startup (line 263 at the tested revisions; ignoring the first 30 hits worked). While paused before the call, invoke macOS `revoke(slave_path)` from the harness, disable the breakpoint, and continue. Observe CPU usage and the event-loop stack, then terminate and reap the test process. Do not revoke an existing user terminal. Uncontrolled timing can reproduce the cleanup abort instead of the spin.
+
+The repair needs both `POLLNVAL` handling and cleanup that tolerates revoked descriptors. Add coverage for both timing paths; an abort is not a passing terminal-close test. Diagnostic builds need frame pointers and unwind tables for a useful cleanup backtrace. All runs used freshly built binaries without model requests; the normal `zig build` output was restored afterward.
+
+The [investigation report](kfx/incidents/2026-09-13-revoked-terminal/FINDINGS.md) and [LLDB reproducer](kfx/incidents/2026-09-13-revoked-terminal/poll-race.py) are archived in `kfx/incidents/2026-09-13-revoked-terminal/`. The report includes usage instructions. Original transcripts (`current-controlled*-lldb.txt`, `old-controlled-lldb.txt`, and `debug-stderr.txt`) remain temporary files under `/tmp/fx-tty-investigation/`; the reproducer needs none of them. This is a manual diagnostic harness, not a CI regression test. All test processes and added Ghostty terminals were cleaned up. For Ghostty automation, identify the newly added terminal by its unique ID: `new window` can return a tab-group window containing existing terminals, so its first terminal need not be the one just created.
+
 ## CI field notes
 
 Hard-won lessons from debugging Full CI failures locally. Recorded after diagnosing a Linux-only SIGSEGV in `mcp-stdio.test.ts` (a use-after-free introduced by a per-call arena change, 2026-08).
